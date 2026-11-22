@@ -1,0 +1,14 @@
+# Rust build artifacts
+/target/
+**/*.rs.bk
+
+# SQLite session / WAL / temp files
+*.session
+*.tmp
+*-wal
+*-shm
+
+# OS / IDE
+.DS_Store
+.vscode/
+.idea/
