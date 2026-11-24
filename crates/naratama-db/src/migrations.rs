@@ -262,6 +262,94 @@ CREATE TABLE IF NOT EXISTS local_season_trophies (
     tournament_id INTEGER NOT NULL,
     trophy_name TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS competition_configs (
+    tournament_id INTEGER NOT NULL,
+    season_start_year INTEGER NOT NULL DEFAULT 0,
+    name TEXT NOT NULL DEFAULT '',
+    type TEXT NOT NULL DEFAULT 'league',
+    format TEXT NOT NULL DEFAULT 'doubleRoundRobin',
+    participant_count INTEGER,
+    double_round_robin INTEGER NOT NULL DEFAULT 1,
+    matchday_interval_days INTEGER NOT NULL DEFAULT 7,
+    min_rest_days INTEGER NOT NULL DEFAULT 2,
+    group_size INTEGER NOT NULL DEFAULT 4,
+    group_count INTEGER NOT NULL DEFAULT 0,
+    group_double_round_robin INTEGER NOT NULL DEFAULT 1,
+    group_qualifiers_per_group INTEGER NOT NULL DEFAULT 2,
+    league_phase_opponents INTEGER NOT NULL DEFAULT 0,
+    league_phase_home_matches INTEGER NOT NULL DEFAULT 0,
+    league_phase_away_matches INTEGER NOT NULL DEFAULT 0,
+    league_phase_qualifiers INTEGER NOT NULL DEFAULT 0,
+    knockout_legs INTEGER NOT NULL DEFAULT 1,
+    final_single_match INTEGER NOT NULL DEFAULT 1,
+    neutral_final INTEGER NOT NULL DEFAULT 0,
+    extra_time INTEGER NOT NULL DEFAULT 1,
+    penalties INTEGER NOT NULL DEFAULT 1,
+    away_goals INTEGER NOT NULL DEFAULT 0,
+    use_byes INTEGER NOT NULL DEFAULT 1,
+    trim_to_power_of_two INTEGER NOT NULL DEFAULT 0,
+    field_size INTEGER,
+    promotion_slots INTEGER NOT NULL DEFAULT 0,
+    relegation_slots INTEGER NOT NULL DEFAULT 0,
+    unavailable_dates TEXT NOT NULL DEFAULT '[]',
+    allowed_weekdays TEXT NOT NULL DEFAULT '[]',
+    PRIMARY KEY (tournament_id, season_start_year)
+);
+
+CREATE TABLE IF NOT EXISTS fixture_reschedules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    match_id INTEGER NOT NULL,
+    old_date TEXT,
+    new_date TEXT NOT NULL,
+    reason TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS knockout_byes (
+    season_id INTEGER NOT NULL,
+    tournament_id INTEGER NOT NULL,
+    phase INTEGER NOT NULL,
+    team_id INTEGER NOT NULL,
+    PRIMARY KEY (season_id, tournament_id, phase, team_id)
+);
+
+CREATE TABLE IF NOT EXISTS transfer_clauses (
+    clause_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    player_id INTEGER NOT NULL,
+    beneficiary_team_id INTEGER NOT NULL,
+    type TEXT NOT NULL,
+    pct REAL NOT NULL DEFAULT 0.0,
+    amount INTEGER NOT NULL DEFAULT 0,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_date TEXT,
+    settled_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS career_state (
+    season_id INTEGER PRIMARY KEY,
+    orientation_completed INTEGER NOT NULL DEFAULT 0,
+    pre_season_date TEXT,
+    last_housekeeping_date TEXT
+);
+
+CREATE TABLE IF NOT EXISTS team_facilities (
+    team_id INTEGER PRIMARY KEY,
+    training_level INTEGER NOT NULL DEFAULT 1,
+    medical_level INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS team_staff (
+    staff_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id INTEGER NOT NULL,
+    role TEXT NOT NULL,
+    name TEXT NOT NULL,
+    stars INTEGER NOT NULL DEFAULT 1,
+    salary INTEGER NOT NULL DEFAULT 5000,
+    specialty TEXT NOT NULL DEFAULT '',
+    hired_date TEXT,
+    UNIQUE(team_id, role)
+);
 ";
 
 const INDEXES_DDL: &str = r"
@@ -269,6 +357,13 @@ CREATE INDEX IF NOT EXISTS idx_matches_tournament_season ON matches(tournament_i
 CREATE INDEX IF NOT EXISTS idx_matches_date ON matches(date);
 CREATE INDEX IF NOT EXISTS idx_finance_ledger_team_season ON local_finance_ledger(team_id, season_id);
 CREATE INDEX IF NOT EXISTS idx_player_stats_player ON local_player_stats(player_id, season_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_team_season ON finance_ledger(team_id, season_id);
+CREATE INDEX IF NOT EXISTS idx_ledger_team_period ON finance_ledger(team_id, season_id, period);
+CREATE INDEX IF NOT EXISTS idx_ledger_team_cat ON finance_ledger(team_id, season_id, category);
+CREATE INDEX IF NOT EXISTS idx_registration_player_status ON player_registrations(player_id, status);
+CREATE INDEX IF NOT EXISTS idx_registration_team_status ON player_registrations(team_id, status);
+CREATE INDEX IF NOT EXISTS idx_clause_player ON transfer_clauses(player_id, active);
+CREATE INDEX IF NOT EXISTS idx_clause_beneficiary ON transfer_clauses(beneficiary_team_id, active);
 ";
 
 /// Applies idempotent local schema migrations, indexes, backfills, and reference seed fixes.
@@ -312,11 +407,22 @@ pub fn ensure_schema(conn: &Connection) -> NaratamaResult<()> {
     )?;
     ensure_column(conn, "matches", "original_date", "TEXT")?;
     ensure_column(conn, "matches", "reschedule_reason", "TEXT")?;
+    ensure_column(conn, "matches", "kickoff_time", "TEXT")?;
 
     ensure_column(conn, "teams", "logo_base64", "TEXT")?;
     ensure_column(conn, "tournaments", "logo_base64", "TEXT")?;
+    ensure_column(conn, "player_awards", "rating", "REAL")?;
+    ensure_column(conn, "player_awards", "stat_subtitle", "TEXT")?;
+    ensure_column(conn, "player_awards", "position_id", "INTEGER")?;
+    ensure_column(conn, "career_state", "last_housekeeping_date", "TEXT")?;
 
     conn.execute_batch(INDEXES_DDL).map_err(db_err)?;
+    // Best-effort unique fixture guard (ignored if legacy saves already contain duplicates).
+    let _ = conn.execute(
+        "CREATE UNIQUE INDEX IF NOT EXISTS ux_matches_fixture
+         ON matches(season_id, tournament_id, phase, leg, round, home_team_id, away_team_id, IFNULL(group_id, -1))",
+        [],
+    );
 
     backfill_team_budgets(conn)?;
     seed_extra_tournaments(conn)?;

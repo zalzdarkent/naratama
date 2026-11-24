@@ -1,6 +1,6 @@
 use crate::enums::{
-    Confederation, MarketStatus, MatchStatus, PlayerStatus, PreferredFoot, SquadStatus,
-    TournamentOrg,
+    CompetitionFormat, CompetitionType, Confederation, InternationalWindowType, MarketStatus,
+    MatchStatus, PlayerStatus, PreferredFoot, SquadStatus, TournamentOrg,
 };
 use crate::ids::{
     CoachId, CountryId, MatchId, Money, PlayerId, SeasonId, StadiumId, TeamId, TournamentId,
@@ -197,4 +197,113 @@ pub struct ClubFacilities {
     pub team_id: TeamId,
     pub training_level: i32,
     pub medical_level: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[allow(clippy::struct_excessive_bools)]
+pub struct CompetitionConfig {
+    pub tournament_id: TournamentId,
+    pub name: String,
+    pub competition_type: CompetitionType,
+    pub format: CompetitionFormat,
+    pub season_start_year: Option<i32>,
+    pub participant_count: Option<i32>,
+    pub double_round_robin: bool,
+    pub matchday_interval_days: i32,
+    pub min_rest_days: i32,
+    pub group_size: i32,
+    pub group_count: i32,
+    pub group_double_round_robin: bool,
+    pub group_qualifiers_per_group: i32,
+    pub league_phase_opponents: i32,
+    pub league_phase_home_matches: i32,
+    pub league_phase_away_matches: i32,
+    pub league_phase_qualifiers: i32,
+    pub knockout_legs: i32,
+    pub final_single_match: bool,
+    pub neutral_final: bool,
+    pub extra_time: bool,
+    pub penalties: bool,
+    pub away_goals: bool,
+    pub use_byes: bool,
+    pub trim_to_power_of_two: bool,
+    pub field_size: Option<i32>,
+    pub promotion_slots: i32,
+    pub relegation_slots: i32,
+    pub unavailable_dates: Vec<NaiveDate>,
+    /// ISO weekday numbers (`1` = Monday .. `7` = Sunday).
+    pub allowed_weekdays: Vec<u32>,
+}
+
+impl CompetitionConfig {
+    #[must_use]
+    pub const fn is_league_like(&self) -> bool {
+        matches!(
+            self.format,
+            CompetitionFormat::DoubleRoundRobin
+                | CompetitionFormat::SingleRoundRobin
+                | CompetitionFormat::LeaguePhase
+        )
+    }
+
+    #[must_use]
+    pub const fn is_grouped(&self) -> bool {
+        matches!(
+            self.format,
+            CompetitionFormat::GroupStage | CompetitionFormat::LeaguePhase
+        )
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternationalWindow {
+    pub window_id: String,
+    pub season_id: SeasonId,
+    pub name: String,
+    pub window_type: InternationalWindowType,
+    pub start_date: NaiveDate,
+    pub end_date: NaiveDate,
+    pub release_start_date: NaiveDate,
+    pub return_date: NaiveDate,
+    pub is_mandatory_release: bool,
+    pub max_matches: i32,
+    pub club_fixtures_allowed: bool,
+}
+
+impl InternationalWindow {
+    #[must_use]
+    pub fn contains_date(&self, date: NaiveDate) -> bool {
+        date >= self.start_date && date <= self.end_date
+    }
+
+    #[must_use]
+    pub fn is_player_released(&self, date: NaiveDate) -> bool {
+        date >= self.release_start_date && date <= self.return_date
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StandingRow {
+    pub team_id: TeamId,
+    pub team_name: String,
+    pub played: i32,
+    pub wins: i32,
+    pub draws: i32,
+    pub losses: i32,
+    pub goals_for: i32,
+    pub goals_against: i32,
+    pub points: i32,
+}
+
+impl StandingRow {
+    #[must_use]
+    pub const fn goal_difference(&self) -> i32 {
+        self.goals_for - self.goals_against
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct GroupTable {
+    pub group_id: i32,
+    pub rows: Vec<StandingRow>,
 }

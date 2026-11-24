@@ -205,6 +205,35 @@ pub enum CompetitionFormat {
     GroupStage,
     Knockout,
     SingleMatch,
+    MultiStage,
+}
+
+impl CompetitionFormat {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::DoubleRoundRobin => "doubleRoundRobin",
+            Self::SingleRoundRobin => "singleRoundRobin",
+            Self::LeaguePhase => "leaguePhase",
+            Self::GroupStage => "groupStage",
+            Self::Knockout => "knockout",
+            Self::SingleMatch => "singleMatch",
+            Self::MultiStage => "multiStage",
+        }
+    }
+
+    #[must_use]
+    pub fn from_db_str(s: &str) -> Self {
+        match s {
+            "singleRoundRobin" => Self::SingleRoundRobin,
+            "leaguePhase" => Self::LeaguePhase,
+            "groupStage" => Self::GroupStage,
+            "knockout" => Self::Knockout,
+            "singleMatch" => Self::SingleMatch,
+            "multiStage" => Self::MultiStage,
+            _ => Self::DoubleRoundRobin,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
@@ -394,6 +423,16 @@ impl InternationalWindowType {
             Self::Qualifiers => "qualifiers",
             Self::FinalTournament => "finalTournament",
             Self::Friendly => "friendly",
+        }
+    }
+
+    #[must_use]
+    pub fn from_db_str(s: &str) -> Self {
+        match s {
+            "qualifiers" => Self::Qualifiers,
+            "finalTournament" => Self::FinalTournament,
+            "friendly" => Self::Friendly,
+            _ => Self::FifaWindow,
         }
     }
 }

@@ -1,4 +1,4 @@
-use crate::db_err;
+use crate::{db_err, lossy_text};
 use naratama_model::{
     CoachId, Confederation, Country, CountryId, LeagueSummary, NaratamaResult,
     PlayableCountrySummary, Stadium, StadiumId, Team, TeamId, Tournament, TournamentId,
@@ -229,6 +229,22 @@ impl<'a> ReferenceRepo<'a> {
         rows.collect::<Result<Vec<_>, _>>().map_err(db_err)
     }
 
+    pub fn all_teams(&self) -> NaratamaResult<Vec<Team>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT team_id, name, COALESCE(abbreviation, ''), COALESCE(country_id, 0),
+                        COALESCE(power, 50), COALESCE(value, 0), COALESCE(budget, 500000),
+                        COALESCE(division, 0), COALESCE(stadium_id, 0), COALESCE(coach_id, 0),
+                        COALESCE(founded_year, 1900), logo_base64
+                 FROM teams
+                 ORDER BY team_id ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt.query_map([], map_team).map_err(db_err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(db_err)
+    }
+
     pub fn team_by_id(&self, id: TeamId) -> NaratamaResult<Option<Team>> {
         self.conn
             .query_row(
@@ -347,8 +363,8 @@ fn map_country(row: &Row<'_>) -> rusqlite::Result<Country> {
 fn map_team(row: &Row<'_>) -> rusqlite::Result<Team> {
     Ok(Team {
         team_id: TeamId(row.get(0)?),
-        name: row.get(1)?,
-        abbreviation: row.get(2)?,
+        name: lossy_text(row, 1)?,
+        abbreviation: lossy_text(row, 2)?,
         country_id: CountryId(row.get(3)?),
         power: row.get(4)?,
         value: row.get(5)?,
