@@ -364,6 +364,11 @@ CREATE INDEX IF NOT EXISTS idx_registration_player_status ON player_registration
 CREATE INDEX IF NOT EXISTS idx_registration_team_status ON player_registrations(team_id, status);
 CREATE INDEX IF NOT EXISTS idx_clause_player ON transfer_clauses(player_id, active);
 CREATE INDEX IF NOT EXISTS idx_clause_beneficiary ON transfer_clauses(beneficiary_team_id, active);
+CREATE INDEX IF NOT EXISTS idx_country_matches_season_tour ON country_matches(season_id, tournament_id);
+CREATE INDEX IF NOT EXISTS idx_country_matches_date ON country_matches(date);
+CREATE INDEX IF NOT EXISTS idx_intl_duty_player_status ON international_duty(player_id, status);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pssc_player_country_season ON player_season_stats_countries(player_id, country_id, season_id);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_mpc_player_match ON match_players_countries(player_id, match_id);
 ";
 
 /// Applies idempotent local schema migrations, indexes, backfills, and reference seed fixes.
@@ -411,6 +416,8 @@ pub fn ensure_schema(conn: &Connection) -> NaratamaResult<()> {
 
     ensure_column(conn, "teams", "logo_base64", "TEXT")?;
     ensure_column(conn, "tournaments", "logo_base64", "TEXT")?;
+    ensure_column(conn, "countries", "previous_rank", "INTEGER")?;
+    ensure_column(conn, "countries", "points", "REAL NOT NULL DEFAULT 0.0")?;
     ensure_column(conn, "player_awards", "rating", "REAL")?;
     ensure_column(conn, "player_awards", "stat_subtitle", "TEXT")?;
     ensure_column(conn, "player_awards", "position_id", "INTEGER")?;
@@ -428,6 +435,7 @@ pub fn ensure_schema(conn: &Connection) -> NaratamaResult<()> {
     seed_extra_tournaments(conn)?;
     fix_international_slots(conn)?;
     seed_sponsors_catalog(conn)?;
+    seed_initial_fifa_points(conn)?;
 
     Ok(())
 }
@@ -744,5 +752,270 @@ fn seed_sponsors_catalog(conn: &Connection) -> NaratamaResult<()> {
         .map_err(db_err)?;
     }
 
+    Ok(())
+}
+
+/// Official FIFA World Ranking 2024 SUM/Elo starting points across 254 nations.
+const INITIAL_FIFA_POINTS: &[(i64, f64)] = &[
+    (1, 1034.37),
+    (2, 1377.91),
+    (3, 1692.19),
+    (4, 1486.03),
+    (5, 981.7),
+    (6, 1281.09),
+    (7, 782.08),
+    (9, 1034.71),
+    (10, 1433.16),
+    (11, 1889.02),
+    (12, 1230.43),
+    (13, 868.4),
+    (14, 1544.3),
+    (15, 1580.37),
+    (16, 1173.15),
+    (17, 1768.14),
+    (18, 817.25),
+    (19, 1315.49),
+    (20, 896.71),
+    (21, 944.1),
+    (22, 913.42),
+    (23, 1257.69),
+    (24, 904.06),
+    (25, 1229.07),
+    (26, 988.98),
+    (27, 1293.76),
+    (28, 1332.39),
+    (29, 1050.15),
+    (30, 1772.02),
+    (31, 906.83),
+    (32, 1302.68),
+    (33, 1387.5),
+    (34, 1101.79),
+    (35, 1379.17),
+    (36, 919.7),
+    (37, 1458.51),
+    (38, 1502.31),
+    (39, 932.44),
+    (40, 1467.98),
+    (41, 1253.77),
+    (42, 1137.06),
+    (44, 1738.72),
+    (45, 1159.64),
+    (46, 1160.33),
+    (47, 1416.91),
+    (48, 1183.02),
+    (49, 1572.61),
+    (50, 1509.12),
+    (51, 1466.08),
+    (52, 1699.6),
+    (53, 991.73),
+    (54, 1261.38),
+    (55, 1621.7),
+    (56, 916.73),
+    (57, 1535.43),
+    (58, 1515.64),
+    (59, 1307.04),
+    (60, 1377.22),
+    (61, 820.0),
+    (62, 1485.89),
+    (63, 1462.98),
+    (64, 1836.42),
+    (65, 1632.19),
+    (66, 1140.39),
+    (67, 1063.44),
+    (68, 1050.03),
+    (69, 1384.36),
+    (70, 1038.29),
+    (71, 1851.92),
+    (72, 1292.88),
+    (73, 1109.05),
+    (74, 1378.22),
+    (75, 1360.43),
+    (76, 842.4),
+    (77, 946.7),
+    (78, 1469.18),
+    (80, 740.0),
+    (81, 821.91),
+    (82, 1200.43),
+    (83, 740.0),
+    (84, 740.0),
+    (85, 1298.3),
+    (86, 1250.57),
+    (87, 1166.02),
+    (88, 1019.99),
+    (89, 1278.56),
+    (90, 1311.3),
+    (91, 1017.66),
+    (92, 1511.06),
+    (93, 1133.52),
+    (94, 1124.17),
+    (95, 1622.92),
+    (96, 1435.9),
+    (97, 1394.63),
+    (102, 1355.75),
+    (103, 973.34),
+    (104, 857.37),
+    (106, 877.53),
+    (108, 1089.51),
+    (111, 1003.48),
+    (116, 1064.11),
+    (117, 802.81),
+    (119, 790.63),
+    (120, 792.15),
+    (121, 1307.8),
+    (122, 1726.31),
+    (123, 1402.95),
+    (124, 1639.6),
+    (126, 1377.52),
+    (127, 1193.21),
+    (128, 1208.96),
+    (129, 1201.11),
+    (131, 1111.62),
+    (132, 1167.49),
+    (133, 889.62),
+    (134, 1034.02),
+    (135, 1097.98),
+    (136, 1064.97),
+    (137, 1153.97),
+    (138, 827.19),
+    (139, 1090.89),
+    (140, 1261.95),
+    (141, 1635.66),
+    (143, 871.52),
+    (144, 1351.18),
+    (145, 1196.56),
+    (146, 1117.64),
+    (147, 1117.42),
+    (148, 1455.16),
+    (149, 971.89),
+    (150, 1676.14),
+    (152, 927.57),
+    (153, 1179.04),
+    (156, 1042.81),
+    (157, 883.57),
+    (158, 1332.68),
+    (159, 924.14),
+    (160, 1226.03),
+    (161, 1201.3),
+    (163, 935.93),
+    (164, 1118.04),
+    (165, 1132.39),
+    (166, 1498.02),
+    (167, 700.0),
+    (168, 1472.16),
+    (169, 1008.92),
+    (170, 1247.08),
+    (171, 1309.27),
+    (172, 1759.95),
+    (173, 842.59),
+    (175, 1228.99),
+    (176, 1502.55),
+    (177, 984.23),
+    (178, 1423.98),
+    (179, 1483.2),
+    (180, 1016.83),
+    (181, 1525.08),
+    (182, 1752.14),
+    (183, 1021.62),
+    (184, 1481.69),
+    (185, 1817.28),
+    (186, 1130.7),
+    (187, 1473.19),
+    (188, 1057.75),
+    (189, 967.83),
+    (191, 1123.32),
+    (192, 1481.4),
+    (193, 1508.73),
+    (195, 900.79),
+    (196, 883.17),
+    (198, 1068.25),
+    (199, 746.05),
+    (202, 945.8),
+    (204, 997.86),
+    (205, 878.09),
+    (206, 1620.87),
+    (207, 1505.08),
+    (208, 831.19),
+    (209, 1134.26),
+    (210, 1008.26),
+    (212, 1252.91),
+    (213, 829.81),
+    (214, 831.39),
+    (215, 1415.07),
+    (216, 1154.5),
+    (217, 1528.18),
+    (218, 1641.0),
+    (219, 1094.39),
+    (221, 1012.17),
+    (222, 1208.01),
+    (223, 1223.06),
+    (224, 991.34),
+    (225, 1188.24),
+    (228, 844.75),
+    (229, 1158.81),
+    (231, 835.64),
+    (232, 1213.25),
+    (233, 1504.86),
+    (234, 1065.42),
+    (235, 1538.52),
+    (237, 1548.29),
+    (238, 1257.64),
+    (239, 1701.34),
+    (240, 1413.06),
+    (241, 1005.49),
+    (242, 1488.56),
+    (243, 1161.38),
+    (245, 1021.24),
+    (246, 875.13),
+    (247, 1252.79),
+    (248, 1134.99),
+    (249, 1461.75),
+    (250, 1526.53),
+    (251, 1339.64),
+    (252, 1205.96),
+    (253, 1008.92),
+];
+
+fn seed_initial_fifa_points(conn: &Connection) -> NaratamaResult<()> {
+    let ranked_count: i64 = conn
+        .query_row(
+            "SELECT COUNT(*) FROM countries WHERE COALESCE(points, 0.0) > 0.0",
+            [],
+            |r| r.get(0),
+        )
+        .map_err(db_err)?;
+    if ranked_count > 0 {
+        return Ok(());
+    }
+
+    let tx = conn.unchecked_transaction().map_err(db_err)?;
+    {
+        let mut stmt = tx
+            .prepare("UPDATE countries SET points = ?1 WHERE country_id = ?2")
+            .map_err(db_err)?;
+        for &(cid, pts) in INITIAL_FIFA_POINTS {
+            stmt.execute(params![pts, cid]).map_err(db_err)?;
+        }
+    }
+
+    let mut rank_stmt = tx
+        .prepare("SELECT country_id FROM countries ORDER BY COALESCE(points, 0.0) DESC, power DESC, name ASC")
+        .map_err(db_err)?;
+    let ranked_ids: Vec<i64> = rank_stmt
+        .query_map([], |r| r.get(0))
+        .map_err(db_err)?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(db_err)?;
+    drop(rank_stmt);
+
+    {
+        let mut upd = tx
+            .prepare("UPDATE countries SET previous_rank = ?1 WHERE country_id = ?2 AND previous_rank IS NULL")
+            .map_err(db_err)?;
+        for (idx, cid) in ranked_ids.into_iter().enumerate() {
+            let pos = i32::try_from(idx + 1).unwrap_or(999);
+            upd.execute(params![pos, cid]).map_err(db_err)?;
+        }
+    }
+    tx.commit().map_err(db_err)?;
     Ok(())
 }

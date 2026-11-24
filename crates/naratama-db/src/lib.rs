@@ -1,5 +1,6 @@
 pub mod club_repo;
 pub mod finance_repo;
+pub mod intl_repo;
 pub mod logo_service;
 pub mod market_repo;
 pub mod migrations;

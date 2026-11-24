@@ -557,7 +557,7 @@ impl PrizeDistributionService {
             if org == TournamentOrg::League {
                 let fixtures = SeasonRepo::new(conn).matches_for_tournament(season_id, tid)?;
                 let league_matches: Vec<_> =
-                    fixtures.into_iter().filter(|m| m.phase == 0).collect();
+                    fixtures.into_iter().filter(|m| m.phase <= 1).collect();
                 let mut club_set: Vec<TeamId> = Vec::new();
                 for m in &league_matches {
                     if !club_set.contains(&m.home_team_id) {

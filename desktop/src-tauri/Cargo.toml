@@ -1,0 +1,25 @@
+[package]
+name = "naratama-desktop"
+version = "0.1.0"
+edition = "2021"
+license = "Proprietary"
+
+[lib]
+name = "naratama_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+chrono = { version = "0.4", features = ["serde"] }
+rand = "0.8"
+rusqlite = { version = "0.32", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+naratama-model = { path = "../../crates/naratama-model" }
+naratama-sim = { path = "../../crates/naratama-sim" }
+naratama-db = { path = "../../crates/naratama-db" }
+naratama-engine = { path = "../../crates/naratama-engine" }
+

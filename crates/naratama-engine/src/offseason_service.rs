@@ -18,6 +18,8 @@ use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
 use crate::finance_service::{PrizeDistributionService, SponsorshipService};
+use crate::intl_service::InternationalSimulationService;
+use crate::national_team_service::NationalTeamService;
 use crate::season_generator::{CareerPlan, GenerateCareerRequest, SeasonGenerator};
 use crate::squad_service::SquadTacticsService;
 use crate::transfer_service::TransferMarketService;
@@ -47,7 +49,7 @@ pub struct PromotionSwap {
 pub struct OffseasonService;
 
 impl OffseasonService {
-    /// Step 0: closes season prizes, Gala awards, Promotion/Relegation, sponsorship bonuses, and board objectives.
+    /// Step 0: closes summer international tournaments, season prizes, Gala awards, Promotion/Relegation, sponsorship bonuses, and board objectives.
     #[allow(clippy::too_many_lines)]
     pub fn begin_offseason(
         conn: &mut Connection,
@@ -55,7 +57,17 @@ impl OffseasonService {
         user_team_id: TeamId,
         manager_name: &str,
         date: NaiveDate,
+        rng: &mut impl Rng,
     ) -> NaratamaResult<OffseasonStateRow> {
+        let intl_cutoff = NaiveDate::from_ymd_opt(season.end_year, 8, 31).unwrap_or(date);
+        let _ = InternationalSimulationService::simulate_pending_matches_through_date(
+            conn,
+            season.season_id,
+            intl_cutoff,
+            rng,
+        )?;
+        let _ = NationalTeamService::snapshot_world_rankings(conn)?;
+
         let mut lines = Vec::new();
         let titles = PrizeDistributionService::award_all_season_prizes(
             conn,
@@ -88,7 +100,7 @@ impl OffseasonService {
         for league in &leagues {
             let matches = SeasonRepo::new(conn)
                 .matches_for_tournament(season.season_id, league.tournament_id)?;
-            let league_matches: Vec<_> = matches.into_iter().filter(|m| m.phase == 0).collect();
+            let league_matches: Vec<_> = matches.into_iter().filter(|m| m.phase <= 1).collect();
             let mut clubs = Vec::new();
             for m in &league_matches {
                 if !clubs.contains(&m.home_team_id) {
@@ -210,7 +222,7 @@ impl OffseasonService {
         let mut tables: HashMap<i32, Vec<StandingRow>> = HashMap::new();
         for tour in &sorted {
             let fixtures = repo.matches_for_tournament(season_id, tour.tournament_id)?;
-            let league_matches: Vec<_> = fixtures.into_iter().filter(|m| m.phase == 0).collect();
+            let league_matches: Vec<_> = fixtures.into_iter().filter(|m| m.phase <= 1).collect();
             let mut clubs = Vec::new();
             for m in &league_matches {
                 if !clubs.contains(&m.home_team_id) {
@@ -464,6 +476,8 @@ impl OffseasonService {
 
         // Bug #19 fix: archive stats & delete transient match_players/match_incidents explicitly in 1 transaction
         ClubRepo::archive_season_stats(conn, season.season_id)?;
+        let _ = NationalTeamService::refresh_all_country_powers(conn)?;
+        let _ = NationalTeamService::snapshot_world_rankings(conn)?;
 
         let state = OffseasonStateRow {
             season_id: season.season_id,

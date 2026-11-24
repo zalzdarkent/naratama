@@ -1,0 +1,63 @@
+{
+  "appTitle": "Naratama Gelanggang",
+  "subtitle": "Football Manager Desktop",
+  "nav": {
+    "dashboard": "Ringkasan",
+    "squad": "Skuad & Taktik",
+    "competitions": "Kompetisi",
+    "international": "Timnas & FIFA",
+    "market": "Bursa Transfer",
+    "clubHub": "Pusat Klub",
+    "inbox": "Kotak Masuk",
+    "news": "Berita Dunia"
+  },
+  "topbar": {
+    "cash": "Kas Klub",
+    "window": "Jendela Transfer",
+    "fanMood": "Mood Fans",
+    "save": "Simpan",
+    "playMatch": "Mainkan Matchday"
+  },
+  "dashboard": {
+    "nextFixture": "Pertandingan Berikutnya",
+    "leagueStandings": "Klasemen Liga",
+    "latestNews": "Berita Terkini",
+    "recentInbox": "Pesan Terbaru",
+    "payroll": "Gaji Mingguan",
+    "simulateHint": "Tekan Spasi atau klik tombol untuk simulasi matchday."
+  },
+  "squad": {
+    "tacticsBoard": "Papan Taktik 2D",
+    "roster": "Daftar Skuad",
+    "train": "Latihan ($75K)",
+    "autoXi": "Auto XI",
+    "position": "Pos",
+    "player": "Pemain",
+    "ovr": "OVR",
+    "pot": "POT",
+    "age": "Usia",
+    "fitness": "Bugar",
+    "value": "Nilai Pasar"
+  },
+  "inspector": {
+    "title": "Inspektor Detail",
+    "selectHint": "Pilih pemain atau klub dari tabel untuk melihat profil detail di sini.",
+    "salary": "Gaji / Minggu",
+    "contract": "Kontrak & Status",
+    "clubPower": "Kekuatan Tim"
+  },
+  "news": {
+    "all": "Semua",
+    "world": "Dunia",
+    "region": "Region",
+    "league": "Liga"
+  },
+  "intl": {
+    "rankings": "Peringkat Dunia FIFA (Elo SUM)",
+    "rank": "#",
+    "nation": "Negara",
+    "points": "Poin Elo",
+    "power": "OVR"
+  }
+}
+

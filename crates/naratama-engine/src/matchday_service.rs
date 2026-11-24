@@ -3,6 +3,7 @@ use std::collections::{HashMap, HashSet};
 use chrono::{Duration, NaiveDate};
 use naratama_db::club_repo::{ClubRepo, MatchPersistPayload, MatchPlayerInsert, RedCardBanInput};
 use naratama_db::finance_repo::{FinanceRepo, NewLedgerEntry};
+use naratama_db::intl_repo::IntlRepo;
 use naratama_db::market_repo::MarketRepo;
 use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::{db_err, SeasonRepo};
@@ -16,6 +17,8 @@ use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
 
 use crate::finance_service::{BroadcastService, FinanceService, SponsorshipService};
+use crate::intl_service::InternationalSimulationService;
+use crate::national_team_service::{NationalTeamSelectionService, NationalTeamService};
 use crate::season_generator::SeasonGenerator;
 use crate::squad_service::SquadTacticsService;
 use crate::transfer_service::TransferMarketService;
@@ -53,6 +56,9 @@ impl MatchdayService {
             .filter(|m| m.status == MatchStatus::Scheduled && Some(m.match_id) != skip_match_id)
             .collect();
         if pending.is_empty() {
+            let _ = InternationalSimulationService::simulate_pending_matches_through_date(
+                conn, season_id, date, rng,
+            )?;
             return Ok(Vec::new());
         }
 
@@ -107,13 +113,15 @@ impl MatchdayService {
                     )
                 });
 
-            let banned = ClubRepo::banned_players_for_competition(
+            let mut banned = ClubRepo::banned_players_for_competition(
                 conn,
                 season_id,
                 comp_type,
                 fixture.home_team_id,
                 fixture.away_team_id,
             )?;
+            let intl_duty_out = IntlRepo::active_duty_player_ids_on_date(conn, date)?;
+            banned.extend(intl_duty_out);
 
             let home_squad = squads
                 .get(&fixture.home_team_id)
@@ -380,6 +388,11 @@ impl MatchdayService {
             }
         }
 
+        // Simulate scheduled international matches through today and advance any international knockouts
+        let _ = InternationalSimulationService::simulate_pending_matches_through_date(
+            conn, season_id, date, rng,
+        )?;
+
         Ok(outcomes)
     }
 
@@ -392,8 +405,18 @@ impl MatchdayService {
         current_date: NaiveDate,
         rng: &mut impl Rng,
     ) -> NaratamaResult<()> {
-        // 1. Legacy untyped suspension tick (competition-scoped bans are NOT touched here!)
+        // 1. Legacy untyped suspension tick + International duty release/callups
         ClubRepo::tick_untyped_suspensions(conn, season_id)?;
+        let released = NationalTeamSelectionService::release_concluded_duties(conn, current_date)?;
+        if released > 0 {
+            let _ = NationalTeamService::snapshot_world_rankings(conn)?;
+        }
+        let _ = NationalTeamSelectionService::ensure_international_callups(
+            conn,
+            season_id,
+            Some(user_team_id),
+            current_date,
+        )?;
 
         // 2. Clear recovered injuries whose return date has passed + weekly squad fitness recovery
         ClubRepo::clear_healed_injuries(conn, current_date)?;

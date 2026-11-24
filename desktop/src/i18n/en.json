@@ -1,0 +1,63 @@
+{
+  "appTitle": "Naratama Gelanggang",
+  "subtitle": "Football Manager Desktop",
+  "nav": {
+    "dashboard": "Dashboard",
+    "squad": "Squad & Tactics",
+    "competitions": "Competitions",
+    "international": "International Hub",
+    "market": "Transfer Market",
+    "clubHub": "Club Hub",
+    "inbox": "Inbox",
+    "news": "World News"
+  },
+  "topbar": {
+    "cash": "Club Cash",
+    "window": "Transfer Window",
+    "fanMood": "Fan Mood",
+    "save": "Save",
+    "playMatch": "Play Matchday"
+  },
+  "dashboard": {
+    "nextFixture": "Next Fixture",
+    "leagueStandings": "League Standings",
+    "latestNews": "Latest Headlines",
+    "recentInbox": "Recent Inbox",
+    "payroll": "Weekly Payroll",
+    "simulateHint": "Press Space or click the button to simulate the next matchday."
+  },
+  "squad": {
+    "tacticsBoard": "2D Tactics Board",
+    "roster": "Squad Roster",
+    "train": "Train ($75K)",
+    "autoXi": "Auto XI",
+    "position": "Pos",
+    "player": "Player",
+    "ovr": "OVR",
+    "pot": "POT",
+    "age": "Age",
+    "fitness": "Fit",
+    "value": "Market Value"
+  },
+  "inspector": {
+    "title": "Detail Inspector",
+    "selectHint": "Click any player or club row to inspect attributes and contract here.",
+    "salary": "Weekly Wage",
+    "contract": "Contract & Status",
+    "clubPower": "Squad Power"
+  },
+  "news": {
+    "all": "All",
+    "world": "World",
+    "region": "Region",
+    "league": "League"
+  },
+  "intl": {
+    "rankings": "FIFA World Rankings (SUM Elo)",
+    "rank": "#",
+    "nation": "Nation",
+    "points": "Elo Points",
+    "power": "OVR"
+  }
+}
+

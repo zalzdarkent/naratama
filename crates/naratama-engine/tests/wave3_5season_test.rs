@@ -341,6 +341,7 @@ fn headless_five_season_career_and_economic_invariants() {
             user_team_id,
             "Manager Budi",
             off_date,
+            &mut rng,
         )
         .unwrap();
         assert_ne!(s0.report, "");

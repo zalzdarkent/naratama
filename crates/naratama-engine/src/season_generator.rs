@@ -19,6 +19,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::fixture_calendar::{find_available_date, FixtureCalendarService};
 use crate::international_calendar::InternationalCalendarService;
+use crate::intl_service::InternationalTournamentService;
 
 #[derive(Debug, Clone)]
 pub struct GenerateCareerRequest {
@@ -65,6 +66,14 @@ impl SeasonGenerator {
             conn,
             season.season_id,
             req.start_year,
+        )?;
+        let _ = InternationalTournamentService::schedule_cycle_for_season(
+            conn,
+            season.season_id,
+            req.start_year,
+            Some(req.country_id),
+            &windows,
+            rng,
         )?;
 
         let mut all_domestic_leagues = vec![req.league.clone()];
