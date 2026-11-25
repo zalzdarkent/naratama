@@ -5,6 +5,7 @@ import {
   HonourRowDto,
   NationalLeaderDto,
   NationalSquadPlayerDto,
+  positionMeta,
 } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
@@ -66,23 +67,42 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
         ))}
 
         <h3 className="card-title" style={{ marginTop: 14 }}>{t.intl.calledSquad}</h3>
-        <select
-          className="select"
-          value={countryId}
-          onChange={(e) => setCountryId(Number(e.target.value))}
-          style={{ marginBottom: 8 }}
-        >
-          {countries.map(([id, name]) => (
-            <option key={id} value={id}>
-              {name}
-            </option>
-          ))}
-        </select>
+        {countries.length > 0 && (
+          <select
+            className="select"
+            value={countryId}
+            onChange={(e) => setCountryId(Number(e.target.value))}
+            style={{ marginBottom: 8 }}
+          >
+            {countries.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        )}
         {squad.length === 0 && (
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.intl.noSquad}</div>
         )}
+        {squad.map((p) => {
+          const pm = positionMeta(p.position_id);
+          return (
+            <div key={p.player_id} className="news-item" style={{ display: 'flex', gap: 8, alignItems: 'center', fontSize: 12.5 }}>
+              <span className="tabular" style={{ width: 24, color: 'var(--text-dim)' }}>
+                {p.shirt_number}
+              </span>
+              <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+              <span style={{ fontWeight: 600 }}>{p.player_name}</span>
+              {p.is_captain && <span>©</span>}
+              <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{p.age}</span>
+              <span className="tabular" style={{ marginLeft: 'auto' }}>
+                OVR {p.power} · {p.caps} caps
+              </span>
+            </div>
+          );
+        })}
         {leaders.length > 0 && (
-          <>
+          <div style={{ marginTop: 14 }}>
             {(
               [
                 [t.intl.mostGoals, (l: NationalLeaderDto) => `${l.goals} ⚽`],
@@ -121,23 +141,8 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
                 </div>
               );
             })}
-          </>
-        )}
-        {squad.map((p) => (
-          <div key={p.player_id} className="news-item" style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
-            <span className="tabular" style={{ width: 24, color: 'var(--text-dim)' }}>
-              {p.shirt_number}
-            </span>
-            <span style={{ fontWeight: 600 }}>{p.player_name}</span>
-            {p.is_captain && <span>©</span>}
-            <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-              pos {p.position_id} · {p.age}
-            </span>
-            <span className="tabular" style={{ marginLeft: 'auto' }}>
-              OVR {p.power} · {p.caps} caps
-            </span>
           </div>
-        ))}
+        )}
       </section>
 
       <section className="card">

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LiveMatchSnapshotDto, logoSrc, MatchEventDto, PlayerDto } from '../api/bridge';
+import { LiveMatchSnapshotDto, logoSrc, MatchEventDto, PlayerDto, positionMeta } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface LiveMatchPanelProps {
@@ -29,7 +29,9 @@ export function LiveMatchPanel({
   const [outId, setOutId] = useState<number>(0);
   const [inId, setInId] = useState<number>(0);
   const [mentality, setMentality] = useState('balanced');
+  const [appliedMentality, setAppliedMentality] = useState('balanced');
   const [pending, setPending] = useState<[number, number][]>([]);
+  const [confirmAbandon, setConfirmAbandon] = useState(false);
 
   const userIsHome = snapshot.user_side === 'home';
   const clock = Math.min(snapshot.minute, 90);
@@ -113,7 +115,7 @@ export function LiveMatchPanel({
 
   const playerOption = (p: PlayerDto) => (
     <option key={p.player_id} value={p.player_id}>
-      {p.name} · {p.position_id} · OVR {p.power}
+      {p.name} · {positionMeta(p.position_id).label} · OVR {p.power}
     </option>
   );
 
@@ -174,9 +176,11 @@ export function LiveMatchPanel({
                   </button>
                 ))}
               </div>
-              <button className="btn" disabled={busy} onClick={() => onAdvance(45)}>
-                {t.live.toHalf}
-              </button>
+              {clock < 45 && (
+                <button className="btn" disabled={busy} onClick={() => onAdvance(45)}>
+                  {t.live.toHalf}
+                </button>
+              )}
               <button className="btn" disabled={busy} onClick={() => onAdvance(90)}>
                 ⏭ {t.match.skip}
               </button>
@@ -187,9 +191,29 @@ export function LiveMatchPanel({
               ✓ {t.live.commit}
             </button>
           )}
-          <button className="btn ghost" disabled={busy} onClick={onClose} style={{ marginLeft: 'auto' }}>
-            {finished ? t.dashboard.close : t.live.abandon}
-          </button>
+          {finished ? (
+            <button className="btn ghost" disabled={busy} onClick={onClose} style={{ marginLeft: 'auto' }}>
+              {t.dashboard.close}
+            </button>
+          ) : confirmAbandon ? (
+            <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+              <button className="btn btn-danger" disabled={busy} onClick={onClose}>
+                {t.live.confirmAbandon}
+              </button>
+              <button className="btn" disabled={busy} onClick={() => setConfirmAbandon(false)}>
+                {t.start.cancel}
+              </button>
+            </div>
+          ) : (
+            <button
+              className="btn ghost"
+              disabled={busy}
+              onClick={() => setConfirmAbandon(true)}
+              style={{ marginLeft: 'auto' }}
+            >
+              {t.live.abandon}
+            </button>
+          )}
         </div>
 
         {!finished && (
@@ -221,9 +245,10 @@ export function LiveMatchPanel({
               </select>
               <button
                 className="btn btn-primary"
-                disabled={busy || (pending.length === 0 && mentality === 'balanced')}
+                disabled={busy || (pending.length === 0 && mentality === appliedMentality)}
                 onClick={() => {
                   onAdjust(pending, mentality);
+                  setAppliedMentality(mentality);
                   setPending([]);
                 }}
               >
@@ -231,14 +256,30 @@ export function LiveMatchPanel({
               </button>
             </div>
             {pending.length > 0 && (
-              <div className="match-adjust-pending">
-                {pending
-                  .map(([out, into]) => {
-                    const outName = snapshot.on_pitch.find((p) => p.player_id === out)?.name ?? out;
-                    const inName = snapshot.bench.find((p) => p.player_id === into)?.name ?? into;
-                    return `${outName} → ${inName}`;
-                  })
-                  .join(' · ')}
+              <div className="match-adjust-pending" style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
+                {pending.map(([out, into], idx) => {
+                  const outName = snapshot.on_pitch.find((p) => p.player_id === out)?.name ?? out;
+                  const inName = snapshot.bench.find((p) => p.player_id === into)?.name ?? into;
+                  return (
+                    <span key={`${out}-${into}-${idx}`} className="pill">
+                      {outName} → {inName}
+                      <button
+                        type="button"
+                        style={{
+                          background: 'transparent',
+                          border: 'none',
+                          color: 'var(--danger)',
+                          cursor: 'pointer',
+                          fontWeight: 700,
+                          padding: '0 2px',
+                        }}
+                        onClick={() => setPending((cur) => cur.filter((_, i) => i !== idx))}
+                      >
+                        ×
+                      </button>
+                    </span>
+                  );
+                })}
               </div>
             )}
           </section>

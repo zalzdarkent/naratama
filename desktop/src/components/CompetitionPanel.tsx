@@ -19,17 +19,19 @@ interface CompetitionPanelProps {
 type Tab = 'table' | 'fixtures' | 'bracket' | 'stats';
 
 function StandingsTable({
+  locale,
   rows,
   userTeamId,
   onOpenTeam,
   logos,
 }: {
+  locale: Locale;
   rows: StandingRowDto[];
   userTeamId: number;
   onOpenTeam: (teamId: number) => void;
   logos: Map<number, string>;
 }) {
-  const t = getDictionary('id');
+  const t = getDictionary(locale);
   return (
     <table className="data-table tabular">
       <thead>
@@ -79,17 +81,19 @@ function StandingsTable({
 }
 
 function FixtureList({
+  locale,
   fixtures,
   userTeamId,
   onOpenMatch,
   onOpenTeam,
 }: {
+  locale: Locale;
   fixtures: FixtureRowDto[];
   userTeamId: number;
   onOpenMatch: (matchId: number) => void;
   onOpenTeam: (teamId: number) => void;
 }) {
-  const t = getDictionary('id');
+  const t = getDictionary(locale);
   return (
     <table className="data-table tabular">
       <thead>
@@ -195,6 +199,7 @@ export function CompetitionPanel({
         {t.competition.group} {group.group_id}
       </div>
       <StandingsTable
+        locale={locale}
         rows={group.rows}
         userTeamId={userTeamId}
         onOpenTeam={onOpenTeam}
@@ -213,7 +218,7 @@ export function CompetitionPanel({
         >
           {tournaments.map(([id, name, org]) => (
             <option key={id} value={id}>
-              {name} {org >= 3 ? `· ${t.competition.international}` : ''}
+              {name} {org === 2 ? `· ${t.competition.international}` : ''}
             </option>
           ))}
         </select>
@@ -246,6 +251,7 @@ export function CompetitionPanel({
             : overview.standings.length > 0
               ? (
                   <StandingsTable
+                    locale={locale}
                     rows={overview.standings}
                     userTeamId={userTeamId}
                     onOpenTeam={onOpenTeam}
@@ -258,6 +264,7 @@ export function CompetitionPanel({
 
       {overview && tab === 'fixtures' && (
         <FixtureList
+          locale={locale}
           fixtures={overview.fixtures}
           userTeamId={userTeamId}
           onOpenMatch={onOpenMatch}

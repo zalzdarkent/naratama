@@ -30,6 +30,7 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
   const [archives, setArchives] = useState<string[]>([]);
   const [archive, setArchive] = useState<string>('');
   const [importSlot, setImportSlot] = useState<number>(1);
+  const [confirmDeleteSlot, setConfirmDeleteSlot] = useState<number | null>(null);
   const [ffp, setFfp] = useState<FfpMode>('off');
 
   // New Career Wizard state
@@ -58,7 +59,9 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
   const loadSlots = async () => {
     try {
       setSlots(await desktopApi.listSaveSlots());
-      setArchives(await desktopApi.listSaveExports());
+      const exported = await desktopApi.listSaveExports();
+      setArchives(exported);
+      setArchive((cur) => (cur && exported.includes(cur) ? cur : (exported[0] ?? '')));
     } catch (err) {
       setError(String(err));
     }
@@ -302,13 +305,35 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                         >
                           {t.start.export}
                         </button>
-                        <button
-                          className="btn btn-danger"
-                          disabled={busy}
-                          onClick={() => void handleDeleteSlot(slot.slot_index)}
-                        >
-                          {t.start.delete}
-                        </button>
+                        {confirmDeleteSlot === slot.slot_index ? (
+                          <>
+                            <button
+                              className="btn btn-danger"
+                              disabled={busy}
+                              onClick={() => {
+                                setConfirmDeleteSlot(null);
+                                void handleDeleteSlot(slot.slot_index);
+                              }}
+                            >
+                              {t.start.confirmDelete}
+                            </button>
+                            <button
+                              className="btn"
+                              disabled={busy}
+                              onClick={() => setConfirmDeleteSlot(null)}
+                            >
+                              {t.start.cancel}
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className="btn btn-danger"
+                            disabled={busy}
+                            onClick={() => setConfirmDeleteSlot(slot.slot_index)}
+                          >
+                            {t.start.delete}
+                          </button>
+                        )}
                       </>
                     ) : (
                       <>

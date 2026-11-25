@@ -45,7 +45,7 @@ body,
 /* Multi-pane Desktop Shell */
 .shell {
   display: grid;
-  grid-template-rows: 58px 1fr;
+  grid-template-rows: auto 1fr;
   grid-template-columns: 224px 1fr 300px;
   height: 100vh;
   overflow: hidden;
@@ -56,10 +56,12 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 18px;
+  flex-wrap: wrap;
+  min-height: 58px;
+  padding: 8px 18px;
   background: var(--surface-card);
   border-bottom: 1px solid var(--border);
-  gap: 14px;
+  gap: 10px 14px;
 }
 
 .topbar-brand {

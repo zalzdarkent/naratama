@@ -892,14 +892,32 @@ export const desktopApi = {
   async finishLiveMatch(): Promise<MatchdayOutcomeDto[]> {
     return (await tauriInvoke<MatchdayOutcomeDto[]>('finish_live_match')) ?? [];
   },
+  async abandonLiveMatch(): Promise<void> {
+    await tauriInvoke('abandon_live_match');
+  },
   async listSeasonTournaments(): Promise<[number, string, number][]> {
-    return (await tauriInvoke<[number, string, number][]>('list_season_tournaments')) ?? [];
+    return (
+      (await tauriInvoke<[number, string, number][]>('list_season_tournaments')) ?? [
+        [1, 'Premier Division', 1],
+      ]
+    );
   },
   async getCompetitionOverview(tournamentId: number): Promise<CompetitionOverviewDto | null> {
     return (
       (await tauriInvoke<CompetitionOverviewDto | null>('get_competition_overview', {
         tournamentId,
-      })) ?? null
+      })) ?? {
+        tournament_id: tournamentId,
+        name: 'Premier Division',
+        organization: 1,
+        standings: PREVIEW_SNAPSHOT.standings_preview,
+        groups: [],
+        fixtures: [],
+        bracket: [],
+        top_scorers: [],
+        top_assists: [],
+        top_rated: [],
+      }
     );
   },
   async getMatchStatistics(matchId: number): Promise<MatchStatisticsDto | null> {
@@ -908,7 +926,11 @@ export const desktopApi = {
     );
   },
   async getSeasons(): Promise<{ season_id: number; name: string; start_year: number; end_year: number }[]> {
-    return (await tauriInvoke<{ season_id: number; name: string; start_year: number; end_year: number }[]>('get_seasons')) ?? [];
+    return (
+      (await tauriInvoke<{ season_id: number; name: string; start_year: number; end_year: number }[]>('get_seasons')) ?? [
+        PREVIEW_SNAPSHOT.season,
+      ]
+    );
   },
   async getSeasonHonours(seasonId?: number): Promise<HonourRowDto[]> {
     return (await tauriInvoke<HonourRowDto[]>('get_season_honours', { seasonId })) ?? [];
@@ -917,7 +939,28 @@ export const desktopApi = {
     return (await tauriInvoke<SeasonAwardRowDto[]>('get_season_awards', { seasonId })) ?? [];
   },
   async getTeamDetail(teamId: number): Promise<TeamDetailDto | null> {
-    return (await tauriInvoke<TeamDetailDto | null>('get_team_detail', { teamId })) ?? null;
+    return (
+      (await tauriInvoke<TeamDetailDto | null>('get_team_detail', { teamId })) ?? {
+        team: {
+          ...PREVIEW_SNAPSHOT.club,
+          team_id: teamId,
+          name:
+            PREVIEW_SNAPSHOT.standings_preview.find((r) => r.team_id === teamId)?.team_name ??
+            PREVIEW_SNAPSHOT.club.name,
+        },
+        league_name: 'Premier Division',
+        stadium: PREVIEW_HUB.stadium,
+        squad_size: PREVIEW_SQUAD.length,
+        squad_value: PREVIEW_SQUAD.reduce((s, p) => s + p.value, 0),
+        average_power: 76,
+        weekly_payroll: PREVIEW_SNAPSHOT.weekly_payroll,
+        top_players: PREVIEW_SQUAD.slice(0, 5),
+        squad: PREVIEW_SQUAD,
+        recent_results: [],
+        next_fixtures: [],
+        trophies: [],
+      }
+    );
   },
   async getPlayerDetail(playerId: number): Promise<PlayerDetailDto | null> {
     return (await tauriInvoke<PlayerDetailDto | null>('get_player_detail', { playerId })) ?? null;

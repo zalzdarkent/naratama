@@ -98,7 +98,7 @@ export function MatchReplay({ locale, userTeamId, replay, onClose }: MatchReplay
   };
 
   const teamName = (side: string) =>
-    (normalize(side) === 'home') === userIsHome ? replay.home_name : replay.away_name;
+    normalize(side) === 'home' ? replay.home_name : replay.away_name;
 
   return (
     <div className="modal-backdrop" onClick={onClose}>

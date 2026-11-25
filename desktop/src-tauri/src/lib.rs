@@ -1004,6 +1004,18 @@ fn finish_live_match(state: State<'_, AppState>) -> Result<Vec<MatchdayOutcome>,
 }
 
 #[tauri::command]
+fn abandon_live_match(state: State<'_, AppState>) -> Result<(), String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    if let Some(active) = guard.as_mut() {
+        active.live = None;
+    }
+    Ok(())
+}
+
+#[tauri::command]
 fn get_match_replay(state: State<'_, AppState>) -> Result<Option<MatchReplay>, String> {
     let guard = state
         .active
@@ -2137,6 +2149,7 @@ pub fn run() {
             live_match_advance,
             live_match_adjust,
             finish_live_match,
+            abandon_live_match,
             get_match_replay,
             list_season_tournaments,
             get_competition_overview,

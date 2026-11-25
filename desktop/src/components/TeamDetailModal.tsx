@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { desktopApi, formatMoney, logoSrc, TeamDetailDto } from '../api/bridge';
+import { desktopApi, formatMoney, logoSrc, PlayerDto, positionMeta, TeamDetailDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface TeamDetailModalProps {
@@ -7,7 +7,7 @@ interface TeamDetailModalProps {
   teamId: number;
   userTeamId: number;
   onClose: () => void;
-  onOpenPlayer: (playerId: number) => void;
+  onOpenPlayer: (player: PlayerDto) => void;
   onOpenDossier: (teamId: number) => void;
 }
 
@@ -43,7 +43,12 @@ export function TeamDetailModal({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal-box" onClick={(e) => e.stopPropagation()}>
         {!detail ? (
-          <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.common.loading}</div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.common.loading}</div>
+            <button className="btn" onClick={onClose}>
+              {t.dashboard.close}
+            </button>
+          </div>
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
@@ -106,15 +111,20 @@ export function TeamDetailModal({
             <div style={{ maxHeight: 170, overflowY: 'auto', marginBottom: 10 }}>
               <table className="data-table tabular">
                 <tbody>
-                  {detail.squad.map((p) => (
-                    <tr key={p.player_id} style={{ cursor: 'pointer' }} onClick={() => onOpenPlayer(p.player_id)}>
-                      <td>{p.position_id}</td>
-                      <td style={{ fontWeight: 600 }}>{p.name}</td>
-                      <td>{p.age}</td>
-                      <td>{p.power}</td>
-                      <td>{formatMoney(p.value)}</td>
-                    </tr>
-                  ))}
+                  {detail.squad.map((p) => {
+                    const pm = positionMeta(p.position_id);
+                    return (
+                      <tr key={p.player_id} style={{ cursor: 'pointer' }} onClick={() => onOpenPlayer(p)}>
+                        <td>
+                          <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{p.name}</td>
+                        <td>{p.age}</td>
+                        <td>{p.power}</td>
+                        <td>{formatMoney(p.value)}</td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
@@ -122,23 +132,25 @@ export function TeamDetailModal({
             <div className="grid-2">
               <div>
                 <h4 style={{ fontSize: 13, margin: '0 0 6px' }}>{t.team.keyPlayers}</h4>
-                {detail.top_players.map((p) => (
-                  <div
-                    key={p.player_id}
-                    className="news-item"
-                    style={{ display: 'flex', gap: 8, cursor: 'pointer' }}
-                    onClick={() => onOpenPlayer(p.player_id)}
-                  >
-                    <span className="ovr-chip">{p.power}</span>
-                    <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name}</span>
-                    <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-                      {p.age} · {p.position_id}
-                    </span>
-                    <span className="tabular" style={{ marginLeft: 'auto', fontSize: 11.5 }}>
-                      {formatMoney(p.value)}
-                    </span>
-                  </div>
-                ))}
+                {detail.top_players.map((p) => {
+                  const pm = positionMeta(p.position_id);
+                  return (
+                    <div
+                      key={p.player_id}
+                      className="news-item"
+                      style={{ display: 'flex', gap: 8, alignItems: 'center', cursor: 'pointer' }}
+                      onClick={() => onOpenPlayer(p)}
+                    >
+                      <span className="ovr-chip">{p.power}</span>
+                      <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+                      <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name}</span>
+                      <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{p.age}</span>
+                      <span className="tabular" style={{ marginLeft: 'auto', fontSize: 11.5 }}>
+                        {formatMoney(p.value)}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
               <div>
                 <h4 style={{ fontSize: 13, margin: '0 0 6px' }}>{t.team.recent}</h4>

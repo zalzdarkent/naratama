@@ -1,4 +1,4 @@
-import { DossierDto } from '../api/bridge';
+import { DossierDto, positionMeta } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface DossierModalProps {
@@ -46,13 +46,16 @@ export function DossierModal({ locale, teamName, dossier, onClose }: DossierModa
         <h4 style={{ fontSize: 13, margin: '10px 0 6px', color: 'var(--danger)' }}>
           {t.dossier.dangerMen}
         </h4>
-        {dossier.danger_men.map((p) => (
-          <div key={p.player_id} className="news-item" style={{ display: 'flex', gap: 8 }}>
-            <span className="ovr-chip">{p.power}</span>
-            <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name}</span>
-            <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>pos {p.position_id}</span>
-          </div>
-        ))}
+        {dossier.danger_men.map((p) => {
+          const pm = positionMeta(p.position_id);
+          return (
+            <div key={p.player_id} className="news-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+              <span className="ovr-chip">{p.power}</span>
+              <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+              <span style={{ fontWeight: 600, fontSize: 12.5 }}>{p.name}</span>
+            </div>
+          );
+        })}
 
         <h4 style={{ fontSize: 13, margin: '10px 0 6px', color: 'var(--warn)' }}>
           {t.dossier.vulnerabilities}

@@ -1,7 +1,7 @@
 {
   "common": {
     "club": "Klub",
-    "played": "M",
+    "played": "L",
     "won": "M",
     "drawn": "S",
     "lost": "K",
@@ -22,6 +22,8 @@
     "newCareer": "Karier Baru",
     "customClub": "Buat Klub Sendiri",
     "delete": "Hapus",
+    "confirmDelete": "Yakin Hapus?",
+    "cancel": "Batal",
     "managerName": "Nama Manajer",
     "selectCountry": "Pilih Negara",
     "selectLeague": "Pilih Divisi / Liga",
@@ -87,7 +89,11 @@
     "playMatch": "Mainkan Matchday",
     "offseason": "Masuk Offseason",
     "savedToast": "Karier tersimpan ke slot.",
-    "language": "Ganti Bahasa"
+    "language": "Ganti Bahasa",
+    "leaveTitle": "Keluar ke Menu Utama?",
+    "leaveBody": "Pilih apakah progres sesi ini ingin disimpan ke slot terlebih dahulu.",
+    "saveAndExit": "Simpan & Keluar",
+    "exitNoSave": "Keluar Tanpa Simpan"
   },
   "dashboard": {
     "nextFixture": "Pertandingan Berikutnya",
@@ -119,7 +125,15 @@
     "saved": "Taktik tersimpan.",
     "trainResult": "Latihan selesai, pemain meningkat:",
     "statistics": "Statistik",
-    "formation": "Formasi"
+    "formation": "Formasi",
+    "tacticsAndSquad": "Taktik & Skuad",
+    "focuses": {
+      "attacking": "Menyerang",
+      "defending": "Bertahan",
+      "playmaking": "Playmaking",
+      "goalkeeping": "Kiper",
+      "fitness": "Kebugaran"
+    }
   },
   "market": {
     "searchPlaceholder": "Cari nama pemain...",
@@ -161,7 +175,8 @@
     "noOffers": "Tidak ada slot sponsor kosong.",
     "winsTarget": "kemenangan (bonus)",
     "sign": "Teken",
-    "signed": "Sponsor ditandatangani."
+    "signed": "Sponsor ditandatangani.",
+    "capacity": "Kapasitas"
   },
   "offseason": {
     "title": "Wizard Offseason Antar Musim",
@@ -247,7 +262,8 @@
     "shootout": "Adu Penalti",
     "halfTime": "Istirahat",
     "toHalf": "Ke 45'",
-    "abandon": "Tutup",
+    "abandon": "Batalkan",
+    "confirmAbandon": "Yakin Batalkan?",
     "homeSide": "Kandang",
     "awaySide": "Tandang"
   },
@@ -270,7 +286,8 @@
     "noData": "Belum ada data."
   },
   "stats": {
-    "fullTime": "STATISTIK PELANGI WAKTU",
+    "fullTime": "STATISTIK AKHIR LAGA",
+    "yourClub": "Klub Anda",
     "possession": "Penguasaan Bola",
     "shots": "Tembakan",
     "shotsOnTarget": "Tembakan Tepat Sasaran",
@@ -327,6 +344,7 @@
     "hired": "Scout direkrut.",
     "noScouts": "Belum ada scout.",
     "back": "kembali",
+    "deploy": "Kirim",
     "deployed": "Scout dikirim.",
     "collect": "Kumpulkan Laporan",
     "collected": "Laporan dikumpulkan.",

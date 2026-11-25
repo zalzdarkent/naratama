@@ -1,0 +1,270 @@
+================================================================================
+LAPORAN AUDIT END-TO-END (E2E) — NARATAMA GELANGGANG DESKTOP
+================================================================================
+Tanggal Audit   : 2026-11-25
+Metode          : Playwright CLI (http://127.0.0.1:1420 @ 1366x768 & 1024x680)
+                  + Audit Alur & Kode UI/IPC (desktop/src/*)
+Cakupan         : 10 Halaman Utama, Start Screen, New Career & Custom Club Wizard,
+                  Live Match, Match Replay, Match Stats, Team Detail, Dossier,
+                  Scouting & Akademi, Kompetisi, Timnas & FIFA, Bursa Transfer,
+                  Pusat Klub, Kotak Masuk, Riwayat & Juara, Berita Dunia,
+                  Shortcut Keyboard, dan Lokalisasi ID/EN.
+
+================================================================================
+RINGKASAN TEMUAN
+================================================================================
+- CRITICAL / HIGH (Bug Fungsional & Data Salah) : 9 temuan
+- MEDIUM (Anomali Alur, UX Membingungkan, i18n) : 11 temuan
+- LOW (Polish, Aset, Konsistensi Format)        : 5 temuan
+Total Temuan                                    : 25 temuan
+
+================================================================================
+1. BUG KRITIS & TINGGI (CRITICAL / HIGH)
+================================================================================
+
+[H-01] Nama Tim Home & Away Tertukar di Match Replay Saat User Main Tandang (Away)
+- Lokasi : desktop/src/components/MatchReplay.tsx (baris 100-101)
+- Bukti  :
+    const teamName = (side: string) =>
+      (normalize(side) === 'home') === userIsHome ? replay.home_name : replay.away_name;
+- Dampak : Jika klub user bermain sebagai tim tandang (userIsHome === false),
+           setiap event dari tim 'home' justru menampilkan nama tim 'away' dan
+           sebaliknya. Gol/kartu/cedera tercatat ke tim yang salah di feed replay.
+- Saran  : Ubah langsung menjadi `normalize(side) === 'home' ? replay.home_name : replay.away_name`.
+
+[H-02] Label Badge "International" Salah Sasaran di Dropdown Kompetisi
+- Lokasi : desktop/src/components/CompetitionPanel.tsx (baris 216)
+- Bukti  : `{name} {org >= 3 ? `· ${t.competition.international}` : ''}`
+- Dampak : Di Rust (`naratama-model/src/enums.rs`), enum `TournamentOrg` adalah:
+           1 = League, 2 = International, 3 = NationalCup, 4 = Friendly.
+           Akibatnya Piala Domestik (3) dan Friendly (4) dilabeli "International",
+           sedangkan kompetisi International sebenarnya (2) tidak mendapat label.
+- Saran  : Ubah kondisi menjadi `org === 2`.
+
+[H-03] Fitur Impor Save Archive Tidak Bisa Dijalankan Jika Hanya Ada 1 File Archive
+- Lokasi : desktop/src/components/StartScreen.tsx (baris 31, 61, 121-122, 338-352)
+- Bukti  : State `archive` diinisialisasi `""`. Saat `listSaveExports()` mengembalikan
+           daftar file, `setArchives(...)` dipanggil tapi `setArchive(list[0])` TIDAK
+           pernah dipanggil.
+- Dampak : Dropdown secara visual menampilkan file archive pertama, tetapi state
+           `archive` tetap kosong `""`. Tombol Impor diam-diam gagal / tidak merespons
+           jika user tidak mengganti pilihan dropdown terlebih dahulu (dan mustahil
+           diganti jika hanya ada 1 file archive).
+- Saran  : Set `setArchive((cur) => cur || (list[0] ?? ''))` setelah `listSaveExports()`.
+
+[H-04] Menekan Spasi / Escape Saat Live Match Menghancurkan Sesi Match Tanpa Cleanup
+- Lokasi : desktop/src/App.tsx (baris 329-344, 1623) & LiveMatchPanel.tsx (baris 190)
+- Bukti  : Shortcut `Space` memanggil `setLive(null)` lalu langsung memicu
+           `handlePlayMatchday()` baru; tombol `Abandon` dan `Escape` hanya memanggil
+           `setLive(null)` di React tanpa memberi tahu backend Tauri.
+- Dampak : User yang tidak sengaja menekan Spasi saat Live Match akan langsung
+           menutup pertandingan berjalan dan men-trigger sesi baru/error state di
+           backend, sedangkan Abandon tidak mengonfirmasi atau membersihkan sesi live.
+- Saran  : Blokir shortcut `Space` saat `live !== null`, tambahkan konfirmasi pada
+           Abandon, dan sediakan/panggil command backend untuk membatalkan live match.
+
+[H-05] Menerima Tawaran Manajer (Manager Offer) Tidak Me-refresh Dashboard & Klub
+- Lokasi : desktop/src/App.tsx (baris 623-636)
+- Bukti  : Callback tombol Terima hanya memanggil `notify(t.manager.accepted); setManagerOffer(null);`
+           tanpa memanggil `refresh()`.
+- Dampak : Setelah user menerima tawaran pindah klub, seluruh UI masih menampilkan
+           klub lama, skuad lama, anggaran lama, dan klasemen liga lama sampai user
+           melakukan aksi lain yang memicu `refresh()`.
+- Saran  : Panggil `return refresh();` setelah `respondManagerOffer(offer_id, true)`.
+
+[H-06] Live Match: Tidak Bisa Kembali ke Mentalitas "Balanced" Setelah Mengubahnya
+- Lokasi : desktop/src/components/LiveMatchPanel.tsx (baris 224)
+- Bukti  : `disabled={busy || (pending.length === 0 && mentality === 'balanced')}`
+- Dampak : Jika user mengganti mentalitas ke `attacking` atau `defensive` lalu klik
+           Terapkan, kemudian ingin kembali ke `balanced` tanpa melakukan pergantian
+           pemain, tombol Terapkan terkunci (disabled).
+- Saran  : Simpan state `appliedMentality` dan disable hanya jika
+           `pending.length === 0 && mentality === appliedMentality`.
+
+[H-07] Klik Pemain Lawan di TeamDetailModal Tidak Melakukan Apa-Apa (Dead Click)
+- Lokasi : desktop/src/App.tsx (baris 1595-1598) & TeamDetailModal.tsx (baris 110, 130)
+- Bukti  : `onOpenPlayer` mencari `squad.find((p) => p.player_id === id)` — padahal
+           `squad` hanya berisi pemain klub user sendiri!
+- Dampak : Baris pemain di modal profil klub lawan memiliki `cursor: pointer`, tetapi
+           saat diklik tidak membuka detail pemain di Inspektor maupun modal apa pun.
+- Saran  : Kirim objek `PlayerDto` langsung dari `TeamDetailModal` ke `setSelectedPlayer(p)`
+           (dan tutup modal atau tampilkan profil pemain lawan di Inspektor).
+
+[H-08] TeamDetailModal Terjebak di Layar "Memuat..." Tanpa Tombol Tutup & Kebal Escape
+- Lokasi : desktop/src/components/TeamDetailModal.tsx (baris 45-47) & App.tsx (baris 338-343)
+- Bukti  : Terverifikasi langsung oleh Playwright (`01b-team-detail-modal`:
+           `teamModalButtons: 0`, `teamModalClosedOnEsc: false`).
+- Dampak : Jika `getTeamDetail` gagal/lambat/null (mis. preview mode atau error DB),
+           modal tidak memiliki tombol Tutup sama sekali dan tidak bisa ditutup dengan
+           tombol `Escape` (begitu juga `MatchStatsModal` dan `DossierModal`).
+- Saran  : Tambahkan tombol Tutup di state loading/error modal, dan tambahkan
+           `setTeamId(null); setStats(null); setDossier(null);` di handler `Escape`.
+
+[H-09] Hapus Save Slot Tidak Ada Konfirmasi (Penghapusan Permanen Sekali Klik)
+- Lokasi : desktop/src/components/StartScreen.tsx (baris 149-160, 305-311)
+- Bukti  : Tombol `Hapus` langsung memanggil `desktopApi.deleteSaveSlot(slot.slot_index)`.
+- Dampak : Satu klik tidak sengaja langsung menghapus permanen file save karier multi-musim.
+- Saran  : Tambahkan modal konfirmasi atau 2-step confirm ("Yakin Hapus?").
+
+================================================================================
+2. ANOMALI ALUR, UX MEMBINGUNGKAN & BUG MENENGAH (MEDIUM)
+================================================================================
+
+[M-01] Layout & Sub-Tab "Skuad & Taktik" Janggal dan Menyesatkan
+- Lokasi : desktop/src/App.tsx (baris 718-860)
+- Bukti  : Terverifikasi oleh Playwright (`02a-squad-formation-tab`: `gridCols: [1]`,
+           `rosterVisibleOnFormation: false`; `02b-squad-roster-tab`: `gridCols: [2]`,
+           `pitchVisibleOnRoster: true`).
+- Dampak :
+  1) Tab default `Papan Taktik 2D` memakai `.grid-2` (2 kolom) tetapi hanya merender
+     1 kartu sehingga separuh kanan layar kosong melompong.
+  2) Teks petunjuk tertulis "Klik dua pemain (di lapangan atau tabel) untuk menukar
+     posisi starter", padahal tabel roster disembunyikan di tab default dan baru muncul
+     bersamaan dengan lapangan saat user klik tab `Daftar Skuad`.
+- Saran  : Gabungkan Papan Taktik 2D + Daftar Skuad dalam 1 tab utama "Taktik & Skuad",
+           dan jadikan "Statistik Musim" sebagai tab kedua.
+
+[M-02] Topbar Meluap / Terpotong pada Resolusi Minimum 1024x680
+- Lokasi : desktop/src/styles/theme.css (baris 45-62)
+- Bukti  : Terverifikasi oleh Playwright (`11a-dashboard-1024` & `11b-clubHub-1024`:
+           `topbarOverflow: true`).
+- Dampak : `.shell` mengunci tinggi baris atas `58px`, sementara `.topbar-meta` memakai
+           `flex-wrap: wrap`. Di lebar 1024px, pill Kas/Jendela/Mood membungkus ke baris
+           kedua dan terpotong oleh batas 58px.
+- Saran  : Gunakan `grid-template-rows: auto 1fr;` dengan `min-height: 58px` pada `.topbar`
+           atau padatkan padding/label pill pada media query `max-width: 1200px`.
+
+[M-03] Kode Posisi Mentah (Angka 1..11) Tampil di 5 Layar Berbeda
+- Lokasi :
+  1) desktop/src/App.tsx baris 883 (Statistik Skuad: `<td>{row.position_id}</td>`)
+  2) desktop/src/components/LiveMatchPanel.tsx baris 116 (`{p.name} · {p.position_id}`)
+  3) desktop/src/components/ScoutingPanel.tsx baris 143 & 171 (`pos {r.position_id}`)
+  4) desktop/src/components/InternationalPanel.tsx baris 134 (`pos {p.position_id}`)
+  5) desktop/src/components/TeamDetailModal.tsx baris 111 & 135 (`{p.position_id}`)
+  6) desktop/src/components/DossierModal.tsx baris 53 (`pos {p.position_id}`)
+- Dampak : Pemain melihat angka mentah ("pos 3", "pos 10") yang tidak dipahami user,
+           berbeda dengan badge `GK / DEF / MID / ATT` di Daftar Skuad & Bursa Transfer.
+- Saran  : Gunakan `positionMeta(position_id)` secara konsisten di seluruh komponen.
+
+[M-04] Bahasa Inggris (EN) Bocor ke Indonesia di Tab Kompetisi
+- Lokasi : desktop/src/components/CompetitionPanel.tsx (baris 32 & 92)
+- Bukti  : `StandingsTable` dan `FixtureList` melakukan hardcode `getDictionary('id')`
+           alih-alih meneruskan prop `locale`.
+- Dampak : Saat user beralih ke bahasa `EN`, header tabel klasemen & jadwal di halaman
+           Kompetisi tetap berbahasa Indonesia (`Klub, M, SG, Poin, Tanggal, Tuan Rumah`).
+- Saran  : Teruskan prop `locale` ke kedua sub-komponen tersebut.
+
+[M-05] Shortcut Keyboard "0" untuk Menu ke-10 ("Berita Dunia") Rusak
+- Lokasi : desktop/src/App.tsx (baris 357-360, 565)
+- Bukti  : Terverifikasi oleh Playwright (`10-news-and-shortcut`: menekan `'0'` tidak
+           berpindah dari `Riwayat & Juara`). Tooltip menampilkan `10 · Berita Dunia`,
+           tetapi kode menghitung `Number('0') - 1 = -1` (tidak pernah masuk `slot = 9`).
+- Saran  : Map `ev.key === '0' ? 9 : Number(ev.key) - 1` dan tampilkan tooltip `0 · Berita Dunia`.
+
+[M-06] Live Match: Tombol "Ke Babak 1 (45')" Tetap Aktif di Babak Kedua & Sub Pending Tak Bisa Dihapus
+- Lokasi : desktop/src/components/LiveMatchPanel.tsx (baris 177-179, 233-243)
+- Dampak :
+  1) Setelah menit >= 45, tombol `onAdvance(45)` masih tampil dan aktif sehingga tampak
+     seperti tombol rusak/tidak berefek.
+  2) Pergantian pemain yang sudah masuk daftar `pending` tidak memiliki tombol batal/hapus
+     sebelum diterapkan.
+- Saran  : Sembunyikan/disable tombol `toHalf` saat `clock >= 45`, dan tambahkan tombol `×`
+           pada tiap chip `pending` substitution.
+
+[M-07] Scouting: Tidak Bisa Mengirim Ulang Scout ke Region yang Sama
+- Lokasi : desktop/src/components/ScoutingPanel.tsx (baris 102-118)
+- Bukti  : Pengiriman scout (`deployScout`) hanya dipicu lewat `onChange` dropdown region
+           yang nilai awalnya sudah sama dengan `s.region || 'europe'`.
+- Dampak : Jika scout sedang idle di region `europe` dan user ingin menugaskannya lagi ke
+           `europe`, user terpaksa memilih region lain dulu. Selain itu, status scout tidak
+           dicek sehingga dropdown tetap aktif meski scout sedang dalam perjalanan.
+- Saran  : Tambahkan tombol eksplisit `Kirim / Deploy` di sebelah dropdown region dan
+           disable saat scout berstatus aktif/sedang bertugas.
+
+[M-08] International Hub: Struktur Kartu & Dropdown Kosong Membingungkan
+- Lokasi : desktop/src/components/InternationalPanel.tsx (baris 68-140)
+- Bukti  : Terverifikasi Playwright (`04-intl`: `emptyIntlSelect: 0`).
+- Dampak :
+  1) Saat belum ada pemanggilan timnas, dropdown `<select>` tetap dirender dalam keadaan
+     kosong (0 opsi).
+  2) Daftar Top Skor / Assist / Caps timnas (`leaders`) diletakkan di tengah-tengah bagian
+     "Skuad Terpanggil" (di antara dropdown negara dan daftar pemain), bukan di kartu/bagian
+     tersendiri.
+- Saran  : Sembunyikan `<select>` jika `countries.length === 0`, dan pisahkan `leaders` ke
+           section dengan judul sendiri.
+
+[M-09] MatchStatsModal: Label Klub User Salah Menggunakan Teks "XI"
+- Lokasi : desktop/src/components/MatchStatsModal.tsx (baris 81)
+- Bukti  : `{isUser && <span className="pill">{t.squad.starter}</span>}`
+- Dampak : Di daftar pemain statistik pertandingan, klub milik user diberi badge `"XI"`
+           (yang artinya Starter 11) alih-alih `"Klub Anda"` / `"Your Club"`.
+- Saran  : Tambahkan key i18n `stats.yourClub` ("Klub Anda" / "Your Club").
+
+[M-10] Pusat Klub: Kapasitas Stadion & Biaya Upgrade Tidak Ditampilkan Sebelum Klik
+- Lokasi : desktop/src/App.tsx (baris 1143-1168, 1243-1285)
+- Dampak :
+  1) User tidak melihat biaya upgrade Training Ground maupun biaya perluasan stadion
+     sebelum menekan tombol.
+  2) Kapasitas stadion saat ini tidak ditampilkan di blok Stadion, hanya 4 input angka
+     harga tiket tanpa satuan mata uang (`$`) dan memakai `defaultValue` (tidak sinkron
+     jika data stadion diperbarui dari backend).
+- Saran  : Tampilkan kapasitas total stadion, estimasi biaya upgrade/ekspansi, dan ubah
+           input tiket menjadi controlled state atau tambahkan `key` berbasis nilai stadion.
+
+[M-11] Menu "Keluar ke Menu" Langsung Keluar Tanpa Konfirmasi & Tanpa Opsi Discard
+- Lokasi : desktop/src/App.tsx (baris 460-468, 532-534)
+- Dampak : Klik tombol `Menu` langsung menyimpan & menutup karier tanpa dialog konfirmasi.
+           User juga tidak punya opsi keluar tanpa menyimpan jika ingin mengulang hari/laga.
+- Saran  : Tambahkan dialog konfirmasi dengan 3 opsi: "Simpan & Keluar", "Keluar Tanpa
+           Simpan", dan "Batal".
+
+================================================================================
+3. TEMUAN MINOR / POLISH & ASET (LOW)
+================================================================================
+
+[L-01] Console Error 404 pada `/favicon.ico`
+- Lokasi : desktop/index.html
+- Bukti  : Terdeteksi Playwright Console:
+           `Failed to load resource: the server responded with a status of 404 (Not Found) @ /favicon.ico`
+- Saran  : Tambahkan `<link rel="icon" href="..." />` (atau SVG data URI) di `index.html`.
+
+[L-02] Format Pendapatan di MatchStatsModal Tanpa Simbol Mata Uang
+- Lokasi : desktop/src/components/MatchStatsModal.tsx (baris 169-170)
+- Bukti  : `{t.stats.revenue}: {stats.revenue.toLocaleString()}` — semua tempat lain
+           memakai `formatMoney(...)` dengan simbol `$`.
+- Saran  : Ganti dengan `formatMoney(stats.revenue)`.
+
+[L-03] Label Fokus Latihan & Kategori Arus Kas Masih Mentah (Bahasa Inggris / CamelCase)
+- Lokasi : desktop/src/App.tsx (baris 795-799 & 1226-1230)
+- Bukti  : Tombol latihan menampilkan `Latihan ($75K): attacking`, `defending`, dst., dan
+           tabel arus kas menampilkan `Broadcast`, `SponsorshipUpfront`, `PlayerWages`.
+- Saran  : Petakan label fokus latihan dan kategori arus kas lewat kamus i18n `id`/`en`.
+
+[L-04] Browser Preview Fallback Tidak Mencakup Semua Endpoint Baru
+- Lokasi : desktop/src/api/bridge.ts
+- Bukti  : Saat dibuka di browser (Playwright/Vite dev) tanpa Tauri, `listSeasonTournaments`,
+           `getCompetitionOverview`, `getTeamDetail`, `getSeasons`, `getScouts`, dan
+           `startLiveMatch` mengembalikan kosong/`null` sehingga halaman Kompetisi terjebak
+           di teks `Memuat Naratama Gelanggang...` dan Riwayat menampilkan dropdown kosong.
+- Saran  : Tambahkan fallback preview minimal atau indikator jelas "Mode Preview Browser"
+           jika memang ditujukan untuk pengujian UI di browser.
+
+[L-05] Bursa Transfer: Pencarian Tidak Otomatis Terpicu Saat Tekan Enter
+- Lokasi : desktop/src/App.tsx (baris 999-1023)
+- Bukti  : Input pencarian pemain (`marketSearch`) hanya memanggil `getMarketPlayers` saat
+           tombol `Cari` diklik (tidak dibungkus `<form onSubmit>` atau `onKeyDown` Enter).
+- Saran  : Bungkus baris filter dengan `<form onSubmit={(e) => { e.preventDefault(); ... }}>`.
+
+================================================================================
+CATATAN VERIFIKASI YANG LOLOS DENGAN BAIK
+================================================================================
+- Seluruh 6 formasi (4-4-2, 4-3-3, 3-5-2, 4-2-3-1, 5-3-2, 4-1-4-1) merender tepat
+  11 pemain di Papan Taktik 2D tanpa overlap.
+- Mekanisme tukar pemain (klik starter + klik cadangan), Auto XI, dan Simpan Taktik
+  berfungsi normal dan memunculkan toast umpan balik.
+- Dropdown `<select>` sudah gelap dan terbaca baik di dark theme (fix WebKitGTK).
+- Start Screen (5 slot), New Career Wizard (4 dropdown berjenjang), dan Custom Club
+  Creator (14 field input + preview crest) berfungsi tanpa runtime pageerror JS.
+- Tidak ada `documentElement` horizontal overflow pada 1366x768 maupun 1024x680.
+================================================================================
+

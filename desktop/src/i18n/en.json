@@ -22,6 +22,8 @@
     "newCareer": "New Career",
     "customClub": "Create Custom Club",
     "delete": "Delete",
+    "confirmDelete": "Confirm Delete?",
+    "cancel": "Cancel",
     "managerName": "Manager Name",
     "selectCountry": "Select Country",
     "selectLeague": "Select Division / League",
@@ -87,7 +89,11 @@
     "playMatch": "Play Matchday",
     "offseason": "Open Offseason",
     "savedToast": "Career saved to slot.",
-    "language": "Switch Language"
+    "language": "Switch Language",
+    "leaveTitle": "Return to Main Menu?",
+    "leaveBody": "Choose whether to save this session to your slot before leaving.",
+    "saveAndExit": "Save & Exit",
+    "exitNoSave": "Exit Without Saving"
   },
   "dashboard": {
     "nextFixture": "Next Fixture",
@@ -119,7 +125,15 @@
     "saved": "Tactics saved.",
     "trainResult": "Training done, players improved:",
     "statistics": "Statistics",
-    "formation": "Formation"
+    "formation": "Formation",
+    "tacticsAndSquad": "Tactics & Squad",
+    "focuses": {
+      "attacking": "Attacking",
+      "defending": "Defending",
+      "playmaking": "Playmaking",
+      "goalkeeping": "Goalkeeping",
+      "fitness": "Fitness"
+    }
   },
   "market": {
     "searchPlaceholder": "Search player name...",
@@ -161,7 +175,8 @@
     "noOffers": "No empty sponsorship slots.",
     "winsTarget": "wins (bonus)",
     "sign": "Sign",
-    "signed": "Sponsorship signed."
+    "signed": "Sponsorship signed.",
+    "capacity": "Capacity"
   },
   "offseason": {
     "title": "End-of-Season Offseason Wizard",
@@ -247,7 +262,8 @@
     "shootout": "Shootout kick",
     "halfTime": "Half Time",
     "toHalf": "To 45'",
-    "abandon": "Close",
+    "abandon": "Abandon",
+    "confirmAbandon": "Confirm Abandon?",
     "homeSide": "Home",
     "awaySide": "Away"
   },
@@ -271,6 +287,7 @@
   },
   "stats": {
     "fullTime": "FULL-TIME STATISTICS",
+    "yourClub": "Your Club",
     "possession": "Possession",
     "shots": "Shots",
     "shotsOnTarget": "Shots on target",
@@ -327,6 +344,7 @@
     "hired": "Scout hired.",
     "noScouts": "No scouts hired.",
     "back": "back",
+    "deploy": "Deploy",
     "deployed": "Scout deployed.",
     "collect": "Collect Reports",
     "collected": "Reports collected.",

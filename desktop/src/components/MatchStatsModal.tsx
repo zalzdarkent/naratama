@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { desktopApi, logoSrc, MatchStatisticsDto } from '../api/bridge';
+import { desktopApi, formatMoney, logoSrc, MatchStatisticsDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface MatchStatsModalProps {
@@ -78,7 +78,7 @@ export function MatchStatsModal({
           >
             {name}
           </span>
-          {isUser && <span className="pill">{t.squad.starter}</span>}
+          {isUser && <span className="pill">{t.stats.yourClub}</span>}
         </div>
         <table className="data-table tabular">
           <thead>
@@ -167,7 +167,7 @@ export function MatchStatsModal({
             )}
           <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginTop: 4 }} className="tabular">
             {t.stats.attendance}: {stats.attendance.toLocaleString()} · {t.stats.revenue}:{' '}
-            {stats.revenue.toLocaleString()}
+            {formatMoney(stats.revenue)}
           </div>
         </div>
 

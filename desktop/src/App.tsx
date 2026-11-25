@@ -120,11 +120,12 @@ export function App() {
   const [loanOffer, setLoanOffer] = useState(false);
   const [loanSeasons, setLoanSeasons] = useState(1);
   const [sponsorOffers, setSponsorOffers] = useState<SponsorOfferDto[]>([]);
-  const [squadTab, setSquadTab] = useState<'formation' | 'squad' | 'stats'>('formation');
+  const [squadTab, setSquadTab] = useState<'tactics' | 'stats'>('tactics');
   const [squadStats, setSquadStats] = useState<SquadStatDto[]>([]);
   const [marketTab, setMarketTab] = useState<'listed' | 'scheduled'>('listed');
   const [scheduled, setScheduled] = useState<ScheduledTransferDto[]>([]);
   const [logoMap, setLogoMap] = useState<Map<number, string>>(new Map());
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
 
   const openMatch = (matchId: number) => {
     void desktopApi
@@ -276,6 +277,16 @@ export function App() {
     }
   };
 
+  const abandonLive = async () => {
+    try {
+      await desktopApi.abandonLiveMatch();
+    } catch {
+      // ignore if already cleared
+    } finally {
+      setLive(null);
+    }
+  };
+
   const handlePlayMatchday = async () => {
     if (busy || !snapshot?.next_match) return;
     setBusy(true);
@@ -327,11 +338,15 @@ export function App() {
         return;
       }
       if (ev.code === 'Space') {
+        if (live) return;
         ev.preventDefault();
         setMatchOutcomes(null);
         setShowOffseason(false);
         setReplay(null);
-        setLive(null);
+        setTeamId(null);
+        setStats(null);
+        setDossier(null);
+        setShowLeaveConfirm(false);
         void handlePlayMatchday();
         return;
       }
@@ -339,7 +354,10 @@ export function App() {
         setMatchOutcomes(null);
         setShowOffseason(false);
         setReplay(null);
-        setLive(null);
+        setTeamId(null);
+        setStats(null);
+        setDossier(null);
+        setShowLeaveConfirm(false);
         return;
       }
       const key = ev.key.toLowerCase();
@@ -354,14 +372,14 @@ export function App() {
         setLocale((cur) => (cur === 'id' ? 'en' : 'id'));
         return;
       }
-      const slot = Number(ev.key) - 1;
+      const slot = ev.key === '0' ? 9 : Number(ev.key) - 1;
       if (Number.isInteger(slot) && slot >= 0 && slot < routes.length) {
         setRoute(routes[slot]);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [inCareer, snapshot, busy]);
+  }, [inCareer, snapshot, busy, live]);
 
   if (!inCareer) {
     return (
@@ -430,10 +448,10 @@ export function App() {
     }
   };
 
-  const handleTrain = async (focus: string) => {
+  const handleTrain = async (focus: keyof typeof t.squad.focuses) => {
     try {
       const count = await desktopApi.trainFocus(focus);
-      notify(`${t.squad.trainResult} ${count} (${focus})`);
+      notify(`${t.squad.trainResult} ${count} (${t.squad.focuses[focus]})`);
       await refresh();
     } catch (err) {
       notify(String(err));
@@ -457,9 +475,10 @@ export function App() {
     }
   };
 
-  const handleLeaveCareer = async () => {
+  const handleLeaveCareer = async (save: boolean) => {
     try {
-      await desktopApi.leaveCareer(true);
+      await desktopApi.leaveCareer(save);
+      setShowLeaveConfirm(false);
       setInCareer(false);
       setSnapshot(null);
     } catch (err) {
@@ -529,7 +548,7 @@ export function App() {
           >
             {t.topbar.save}
           </button>
-          <button className="btn" onClick={() => void handleLeaveCareer()}>
+          <button className="btn" onClick={() => setShowLeaveConfirm(true)}>
             {t.topbar.menu}
           </button>
           {isSeasonComplete ? (
@@ -562,7 +581,7 @@ export function App() {
           <button
             key={key}
             className={`nav-item ${route === key ? 'active' : ''}`}
-            title={`${idx + 1} · ${label}`}
+            title={`${idx === 9 ? 0 : idx + 1} · ${label}`}
             onClick={() => setRoute(key)}
           >
             <span>{label}</span>
@@ -628,6 +647,7 @@ export function App() {
                         .then(() => {
                           notify(t.manager.accepted);
                           setManagerOffer(null);
+                          return refresh();
                         })
                         .catch((e) => notify(String(e)))
                     }
@@ -719,8 +739,7 @@ export function App() {
             <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
               {(
                 [
-                  ['formation', t.squad.tacticsBoard],
-                  ['squad', t.squad.roster],
+                  ['tactics', t.squad.tacticsAndSquad],
                   ['stats', t.squad.statistics],
                 ] as [typeof squadTab, string][]
               ).map(([key, label]) => (
@@ -734,7 +753,7 @@ export function App() {
               ))}
             </div>
           <div className="grid-2">
-            {(squadTab === 'formation' || squadTab === 'squad') && (
+            {squadTab === 'tactics' && (
             <section className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <h3 className="card-title" style={{ margin: 0 }}>
@@ -795,7 +814,7 @@ export function App() {
                 {(['attacking', 'defending', 'playmaking', 'goalkeeping', 'fitness'] as const).map(
                   (focus) => (
                     <button key={focus} className="btn" onClick={() => void handleTrain(focus)}>
-                      {t.squad.train}: {focus}
+                      {t.squad.train}: {t.squad.focuses[focus]}
                     </button>
                   ),
                 )}
@@ -803,7 +822,7 @@ export function App() {
             </section>
             )}
 
-            {squadTab === 'squad' && (
+            {squadTab === 'tactics' && (
             <section className="card">
               <h3 className="card-title">{t.squad.roster}</h3>
               <table className="data-table tabular">
@@ -877,25 +896,30 @@ export function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {squadStats.map((row) => (
-                      <tr key={row.player_id}>
-                        <td style={{ fontWeight: 600 }}>{row.player_name}</td>
-                        <td>{row.position_id}</td>
-                        <td>{row.age}</td>
-                        <td>{row.matches_played}</td>
-                        <td>{row.minutes}</td>
-                        <td>{row.goals}</td>
-                        <td>{row.assists}</td>
-                        <td>
-                          {row.yellow_cards > 0 && `🟨${row.yellow_cards} `}
-                          {row.red_cards > 0 && `🟥${row.red_cards}`}
-                        </td>
-                        <td>{row.mvps}</td>
-                        <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
-                          {(row.rating / 10).toFixed(1)}
-                        </td>
-                      </tr>
-                    ))}
+                    {squadStats.map((row) => {
+                      const pm = positionMeta(row.position_id);
+                      return (
+                        <tr key={row.player_id}>
+                          <td style={{ fontWeight: 600 }}>{row.player_name}</td>
+                          <td>
+                            <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+                          </td>
+                          <td>{row.age}</td>
+                          <td>{row.matches_played}</td>
+                          <td>{row.minutes}</td>
+                          <td>{row.goals}</td>
+                          <td>{row.assists}</td>
+                          <td>
+                            {row.yellow_cards > 0 && `🟨${row.yellow_cards} `}
+                            {row.red_cards > 0 && `🟥${row.red_cards}`}
+                          </td>
+                          <td>{row.mvps}</td>
+                          <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
+                            {(row.rating / 10).toFixed(1)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </section>
@@ -995,7 +1019,13 @@ export function App() {
             )}
             {marketTab === 'listed' && (
             <>
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+            <form
+              style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}
+              onSubmit={(e) => {
+                e.preventDefault();
+                void desktopApi.getMarketPlayers(marketSearch, marketMaxAge).then(setMarket);
+              }}
+            >
               <input
                 className="input"
                 style={{ flex: 1, minWidth: 180 }}
@@ -1015,10 +1045,7 @@ export function App() {
                   onChange={(e) => setMarketMaxAge(Number(e.target.value))}
                 />
               </label>
-              <button
-                className="btn btn-primary"
-                onClick={() => void desktopApi.getMarketPlayers(marketSearch, marketMaxAge).then(setMarket)}
-              >
+              <button className="btn btn-primary" type="submit">
                 {t.market.search}
               </button>
               <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-dim)' }}>
@@ -1038,7 +1065,7 @@ export function App() {
                   ))}
                 </select>
               )}
-            </div>
+            </form>
             <table className="data-table tabular">
               <thead>
                 <tr>
@@ -1225,7 +1252,7 @@ export function App() {
                 <tbody>
                   {clubHub.cash_summary.map(([cat, amt]) => (
                     <tr key={cat}>
-                      <td>{cat}</td>
+                      <td>{cat.replace(/([a-z])([A-Z])/g, '$1 $2').replace(/_/g, ' ')}</td>
                       <td
                         style={{
                           textAlign: 'right',
@@ -1241,6 +1268,17 @@ export function App() {
               </table>
 
               <h3 className="card-title">{t.clubHub.stadium}</h3>
+              {clubHub.stadium && (
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }} className="tabular">
+                  <strong>{clubHub.stadium.name}</strong> · {t.clubHub.capacity}:{' '}
+                  {(
+                    clubHub.stadium.capacity_general +
+                    clubHub.stadium.capacity_stand +
+                    clubHub.stadium.capacity_terrace +
+                    clubHub.stadium.capacity_boxes
+                  ).toLocaleString()}
+                </div>
+              )}
               <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
                 <button
                   className="btn btn-primary"
@@ -1256,32 +1294,36 @@ export function App() {
                 >
                   {t.clubHub.expand}
                 </button>
-                {(['general', 'stand', 'terrace', 'boxes'] as const).map((seat) => (
-                  <label key={seat} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
-                    {t.clubHub[seat]}
-                    <input
-                      className="input tabular"
-                      type="number"
-                      min={0}
-                      style={{ width: 74 }}
-                      defaultValue={
-                        seat === 'general'
-                          ? clubHub.stadium?.ticket_price_general
-                          : seat === 'stand'
-                            ? clubHub.stadium?.ticket_price_stand
-                            : seat === 'terrace'
-                              ? clubHub.stadium?.ticket_price_terrace
-                              : clubHub.stadium?.ticket_price_boxes
-                      }
-                      onBlur={(e) =>
-                        void desktopApi
-                          .setTicketPrice(seat, Number(e.target.value))
-                          .then(() => notify(t.clubHub.ticketSaved))
-                          .catch((err) => notify(String(err)))
-                      }
-                    />
-                  </label>
-                ))}
+                {(['general', 'stand', 'terrace', 'boxes'] as const).map((seat) => {
+                  const val =
+                    seat === 'general'
+                      ? clubHub.stadium?.ticket_price_general
+                      : seat === 'stand'
+                        ? clubHub.stadium?.ticket_price_stand
+                        : seat === 'terrace'
+                          ? clubHub.stadium?.ticket_price_terrace
+                          : clubHub.stadium?.ticket_price_boxes;
+                  return (
+                    <label key={`${seat}-${val ?? ''}`} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                      {t.clubHub[seat]} ($)
+                      <input
+                        className="input tabular"
+                        type="number"
+                        min={0}
+                        style={{ width: 74 }}
+                        defaultValue={val}
+                        onBlur={(e) => {
+                          const n = Number(e.target.value);
+                          if (!Number.isFinite(n) || n < 0) return;
+                          void desktopApi
+                            .setTicketPrice(seat, Math.round(n))
+                            .then(() => notify(t.clubHub.ticketSaved))
+                            .catch((err) => notify(String(err)));
+                        }}
+                      />
+                    </label>
+                  );
+                })}
               </div>
 
               <h3 className="card-title">{t.clubHub.sponsorOffers}</h3>
@@ -1592,9 +1634,9 @@ export function App() {
           teamId={teamId}
           userTeamId={snapshot.club.team_id}
           onClose={() => setTeamId(null)}
-          onOpenPlayer={(id) => {
-            const found = squad.find((p) => p.player_id === id);
-            if (found) setSelectedPlayer(found);
+          onOpenPlayer={(player) => {
+            setSelectedPlayer(player);
+            setTeamId(null);
           }}
           onOpenDossier={(id) => {
             setTeamId(null);
@@ -1620,8 +1662,30 @@ export function App() {
           onAdvance={(minute) => void handleAdvanceLive(minute)}
           onAdjust={(subs, mentality) => void handleAdjustLive(subs, mentality)}
           onFinish={() => void finishLive()}
-          onClose={() => setLive(null)}
+          onClose={() => void abandonLive()}
         />
+      )}
+
+      {showLeaveConfirm && (
+        <div className="modal-backdrop" onClick={() => setShowLeaveConfirm(false)}>
+          <div className="modal-box" style={{ maxWidth: 420 }} onClick={(e) => e.stopPropagation()}>
+            <h3 className="card-title" style={{ margin: 0 }}>
+              {t.topbar.leaveTitle}
+            </h3>
+            <div style={{ fontSize: 13, color: 'var(--text-dim)' }}>{t.topbar.leaveBody}</div>
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+              <button className="btn" onClick={() => setShowLeaveConfirm(false)}>
+                {t.start.cancel}
+              </button>
+              <button className="btn btn-danger" onClick={() => void handleLeaveCareer(false)}>
+                {t.topbar.exitNoSave}
+              </button>
+              <button className="btn btn-primary" onClick={() => void handleLeaveCareer(true)}>
+                {t.topbar.saveAndExit}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {replay && (
