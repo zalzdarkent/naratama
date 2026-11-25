@@ -1,3 +1,4 @@
+pub mod club_ops_service;
 pub mod custom_club_service;
 pub mod desktop_facade;
 pub mod finance_service;
@@ -14,6 +15,7 @@ pub mod season_generator;
 pub mod squad_service;
 pub mod transfer_service;
 
+pub use club_ops_service::*;
 pub use custom_club_service::*;
 pub use desktop_facade::*;
 pub use finance_service::*;

@@ -122,7 +122,20 @@
     "sponsors": "Sponsor Aktif",
     "cashFlow": "Ringkasan Arus Kas Musim",
     "upgraded": "Fasilitas latihan ditingkatkan.",
-    "hired": "Staf direkrut:"
+    "hired": "Staf direkrut:",
+    "stadium": "Stadion & Harga Tiket",
+    "expand": "Perluas Stadion",
+    "expanded": "Stadion diperluas",
+    "ticketSaved": "Harga tiket disimpan.",
+    "general": "Umum",
+    "stand": "Tribun",
+    "terrace": "Teras",
+    "boxes": "Box",
+    "sponsorOffers": "Tawaran Sponsor",
+    "noOffers": "Tidak ada slot sponsor kosong.",
+    "winsTarget": "kemenangan (bonus)",
+    "sign": "Teken",
+    "signed": "Sponsor ditandatangani."
   },
   "offseason": {
     "title": "Wizard Offseason Antar Musim",
@@ -142,7 +155,9 @@
     "clubPower": "Kekuatan Tim",
     "caps": "Caps Timnas",
     "seasonStats": "Statistik Musim",
-    "recentRatings": "Rating Terakhir"
+    "recentRatings": "Rating Terakhir",
+    "renew": "Perpanjang Kontrak (+2 musim)",
+    "renewed": "Kontrak diperpanjang:"
   },
   "news": {
     "all": "Semua",

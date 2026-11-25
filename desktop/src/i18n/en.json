@@ -122,7 +122,20 @@
     "sponsors": "Active Sponsors",
     "cashFlow": "Season Cash Flow Breakdown",
     "upgraded": "Training ground upgraded.",
-    "hired": "Staff hired:"
+    "hired": "Staff hired:",
+    "stadium": "Stadium & Ticket Prices",
+    "expand": "Expand Stadium",
+    "expanded": "Stadium expanded",
+    "ticketSaved": "Ticket price saved.",
+    "general": "General",
+    "stand": "Stand",
+    "terrace": "Terrace",
+    "boxes": "Boxes",
+    "sponsorOffers": "Sponsorship Offers",
+    "noOffers": "No empty sponsorship slots.",
+    "winsTarget": "wins (bonus)",
+    "sign": "Sign",
+    "signed": "Sponsorship signed."
   },
   "offseason": {
     "title": "End-of-Season Offseason Wizard",
@@ -142,7 +155,9 @@
     "clubPower": "Squad Power",
     "caps": "National Caps",
     "seasonStats": "Season Stats",
-    "recentRatings": "Recent Ratings"
+    "recentRatings": "Recent Ratings",
+    "renew": "Renew Contract (+2 seasons)",
+    "renewed": "Contract renewed:"
   },
   "news": {
     "all": "All",

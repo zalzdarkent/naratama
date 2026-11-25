@@ -13,15 +13,16 @@ use naratama_engine::{
     InboxMessageRow, InboxService, InitialSquadPreset, MatchReplay, MatchStatistics,
     MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine, NewsItemRow,
     OfferResponseAction, OffseasonService, PlayerDetail, PreseasonCamp, PreparedFixture,
-    AcademyProspect, ManagerOfferRow, ManagerOfferService, OfferInfo, ReadService,
+    AcademyProspect, ClubOpsService, ContractRenewal, ManagerOfferRow, ManagerOfferService,
+    OfferInfo, ReadService, SponsorOffer, StadiumExpansion,
     ScoutInfo, ScoutReportInfo, ScoutingService, SeasonAwardRow, SeasonGenerator,
     SquadTacticsService,
     StadiumArchitecture, TeamDetail, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
     ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchId, MatchStatus, Money,
-    PlayableCountrySummary, Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Team,
-    TeamId, TournamentId,
+    PlayableCountrySummary, Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Stadium,
+    Team, TeamId, TournamentId,
 };
 use naratama_sim::{LiveMatch, MatchEvent, MatchMentality, MatchResult, MatchSide, TacticalDossier};
 use rand::rngs::StdRng;
@@ -89,6 +90,7 @@ pub struct ClubHubPayload {
     pub staff: Vec<ClubStaffRow>,
     pub sponsorships: Vec<SponsorshipRow>,
     pub cash_summary: Vec<(String, i64)>,
+    pub stadium: Option<Stadium>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -1301,6 +1303,124 @@ fn respond_manager_offer(
 }
 
 #[tauri::command]
+fn renew_contract(
+    state: State<'_, AppState>,
+    player_id: i64,
+) -> Result<ContractRenewal, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    let year = ClubOpsService::current_year(&active.conn, active.season_id)
+        .map_err(|e| e.to_string())?;
+    ClubOpsService::renew_contract(
+        &mut active.conn,
+        active.user_team_id,
+        PlayerId(player_id),
+        year,
+        date,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn expand_stadium(state: State<'_, AppState>) -> Result<StadiumExpansion, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    ClubOpsService::expand_stadium(
+        &mut active.conn,
+        active.user_team_id,
+        active.season_id,
+        date,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn set_ticket_price(
+    state: State<'_, AppState>,
+    seat_type: String,
+    price: i32,
+) -> Result<(), String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ClubOpsService::set_ticket_price(&active.conn, active.user_team_id, &seat_type, price)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_sponsor_offers(state: State<'_, AppState>) -> Result<Vec<SponsorOffer>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let power: i32 = active
+        .conn
+        .query_row(
+            "SELECT COALESCE(power, 60) FROM teams WHERE team_id = ?1",
+            params![active.user_team_id.0],
+            |r| r.get(0),
+        )
+        .unwrap_or(60);
+    ClubOpsService::sponsor_offers(&active.conn, active.user_team_id, active.season_id, power)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn sign_sponsorship(state: State<'_, AppState>, offer: SponsorOffer) -> Result<i64, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    ClubOpsService::sign_sponsorship(
+        &mut active.conn,
+        active.user_team_id,
+        active.season_id,
+        &offer,
+        date,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn terminate_sponsorship(
+    state: State<'_, AppState>,
+    sponsorship_id: i64,
+) -> Result<(), String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ClubOpsService::terminate_sponsorship(&active.conn, active.user_team_id, sponsorship_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
         .active
@@ -1359,11 +1479,22 @@ fn get_club_hub(state: State<'_, AppState>) -> Result<ClubHubPayload, String> {
         active.season_id,
     )
     .map_err(|e| e.to_string())?;
+    let stadium = ReferenceRepo::new(&active.conn)
+        .team_by_id(active.user_team_id)
+        .ok()
+        .flatten()
+        .and_then(|team| {
+            ReferenceRepo::new(&active.conn)
+                .stadium_by_id(team.stadium_id)
+                .ok()
+                .flatten()
+        });
     Ok(ClubHubPayload {
         facilities,
         staff,
         sponsorships,
         cash_summary,
+        stadium,
     })
 }
 
@@ -1821,6 +1952,12 @@ pub fn run() {
             respond_transfer_offer,
             get_manager_offer,
             respond_manager_offer,
+            renew_contract,
+            expand_stadium,
+            set_ticket_price,
+            get_sponsor_offers,
+            sign_sponsorship,
+            terminate_sponsorship,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

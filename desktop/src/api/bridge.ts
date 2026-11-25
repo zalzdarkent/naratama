@@ -35,6 +35,7 @@ export interface TeamDto {
   value?: number;
   budget: number;
   division: number;
+  logo_base64?: string | null;
 }
 
 export interface PlayerDto {
@@ -412,6 +413,16 @@ export interface ManagerOfferDto {
   from_power: number;
 }
 
+export interface SponsorOfferDto {
+  slot_type: string;
+  sponsor_id: number;
+  sponsor_name: string;
+  upfront: number;
+  weekly: number;
+  target_wins: number;
+  target_bonus: number;
+}
+
 export interface DossierDto {
   formation: string;
   tactical_style: string;
@@ -450,11 +461,29 @@ export interface SponsorshipDto {
   success: boolean;
 }
 
+export interface StadiumDto {
+  stadium_id: number;
+  name: string;
+  capacity_general: number;
+  capacity_stand: number;
+  capacity_terrace: number;
+  capacity_boxes: number;
+  max_general: number;
+  max_stand: number;
+  max_terrace: number;
+  max_boxes: number;
+  ticket_price_general: number;
+  ticket_price_stand: number;
+  ticket_price_terrace: number;
+  ticket_price_boxes: number;
+}
+
 export interface ClubHubDto {
   facilities: ClubFacilitiesDto;
   staff: ClubStaffDto[];
   sponsorships: SponsorshipDto[];
   cash_summary: [string, number][];
+  stadium: StadiumDto | null;
 }
 
 export interface MarketListingDto {
@@ -612,6 +641,22 @@ const PREVIEW_HUB: ClubHubDto = {
   sponsorships: [
     { sponsorship_id: 1, deal_type: 'shirt', sponsor_name: 'Nusantara Airways', base_reward: 4_500_000, target: 1, progress: 0, success: false },
   ],
+  stadium: {
+    stadium_id: 1,
+    name: 'Gelanggang',
+    capacity_general: 15000,
+    capacity_stand: 8000,
+    capacity_terrace: 4000,
+    capacity_boxes: 300,
+    max_general: 22500,
+    max_stand: 12000,
+    max_terrace: 6000,
+    max_boxes: 450,
+    ticket_price_general: 14,
+    ticket_price_stand: 38,
+    ticket_price_terrace: 21,
+    ticket_price_boxes: 120,
+  },
   cash_summary: [
     ['Broadcast', 6_200_000],
     ['SponsorshipUpfront', 4_500_000],
@@ -806,6 +851,33 @@ export const desktopApi = {
   },
   async respondManagerOffer(offerId: number, accept: boolean): Promise<void> {
     await tauriInvoke('respond_manager_offer', { offerId, accept });
+  },
+  async renewContract(playerId: number): Promise<{ new_salary: number; signing_bonus: number; new_end_date: string } | null> {
+    return (
+      (await tauriInvoke<{ new_salary: number; signing_bonus: number; new_end_date: string } | null>(
+        'renew_contract',
+        { playerId },
+      )) ?? null
+    );
+  },
+  async expandStadium(): Promise<{ added_seats: number; cost: number; new_capacity: number } | null> {
+    return (
+      (await tauriInvoke<{ added_seats: number; cost: number; new_capacity: number } | null>(
+        'expand_stadium',
+      )) ?? null
+    );
+  },
+  async setTicketPrice(seatType: string, price: number): Promise<void> {
+    await tauriInvoke('set_ticket_price', { seatType, price });
+  },
+  async getSponsorOffers(): Promise<SponsorOfferDto[]> {
+    return (await tauriInvoke<SponsorOfferDto[]>('get_sponsor_offers')) ?? [];
+  },
+  async signSponsorship(offer: SponsorOfferDto): Promise<number> {
+    return (await tauriInvoke<number>('sign_sponsorship', { offer })) ?? 0;
+  },
+  async terminateSponsorship(sponsorshipId: number): Promise<void> {
+    await tauriInvoke('terminate_sponsorship', { sponsorshipId });
   },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;

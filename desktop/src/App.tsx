@@ -12,6 +12,7 @@ import {
   ManagerOfferDto,
   MatchStatisticsDto,
   OfferInfoDto,
+  SponsorOfferDto,
   PlayerDetailDto,
   MarketListingDto,
   MatchdayOutcomeDto,
@@ -114,6 +115,7 @@ export function App() {
   const [managerOffer, setManagerOffer] = useState<ManagerOfferDto | null>(null);
   const [loanOffer, setLoanOffer] = useState(false);
   const [loanSeasons, setLoanSeasons] = useState(1);
+  const [sponsorOffers, setSponsorOffers] = useState<SponsorOfferDto[]>([]);
 
   const openMatch = (matchId: number) => {
     void desktopApi
@@ -152,6 +154,7 @@ export function App() {
       desktopApi.getIncomingOffers(),
       desktopApi.getManagerOffer(),
     ]);
+    setSponsorOffers(await desktopApi.getSponsorOffers().catch(() => []));
     setIncomingOffers(offers ?? []);
     setManagerOffer(move ?? null);
     setSnapshot(dash);
@@ -459,7 +462,15 @@ export function App() {
     <div className="shell">
       <header className="topbar">
         <div className="topbar-brand">
-          <div className="crest-pill">{snapshot.club.abbreviation}</div>
+          {snapshot.club.logo_base64 ? (
+            <img
+              src={snapshot.club.logo_base64}
+              alt={snapshot.club.abbreviation}
+              style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'contain', background: '#0b1424' }}
+            />
+          ) : (
+            <div className="crest-pill">{snapshot.club.abbreviation}</div>
+          )}
           <div>
             <div style={{ fontWeight: 800, fontSize: 14 }}>{snapshot.club.name}</div>
             <div style={{ fontSize: 12, color: 'var(--text-dim)' }} className="tabular">
@@ -1065,6 +1076,83 @@ export function App() {
                 </tbody>
               </table>
 
+              <h3 className="card-title">{t.clubHub.stadium}</h3>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 10, flexWrap: 'wrap' }}>
+                <button
+                  className="btn btn-primary"
+                  onClick={() =>
+                    void desktopApi
+                      .expandStadium()
+                      .then((res) => {
+                        if (res) notify(`${t.clubHub.expanded} +${res.added_seats} (${formatMoney(res.cost)})`);
+                        return refresh();
+                      })
+                      .catch((e) => notify(String(e)))
+                  }
+                >
+                  {t.clubHub.expand}
+                </button>
+                {(['general', 'stand', 'terrace', 'boxes'] as const).map((seat) => (
+                  <label key={seat} style={{ display: 'flex', gap: 4, alignItems: 'center', fontSize: 12 }}>
+                    {t.clubHub[seat]}
+                    <input
+                      className="input tabular"
+                      type="number"
+                      min={0}
+                      style={{ width: 74 }}
+                      defaultValue={
+                        seat === 'general'
+                          ? clubHub.stadium?.ticket_price_general
+                          : seat === 'stand'
+                            ? clubHub.stadium?.ticket_price_stand
+                            : seat === 'terrace'
+                              ? clubHub.stadium?.ticket_price_terrace
+                              : clubHub.stadium?.ticket_price_boxes
+                      }
+                      onBlur={(e) =>
+                        void desktopApi
+                          .setTicketPrice(seat, Number(e.target.value))
+                          .then(() => notify(t.clubHub.ticketSaved))
+                          .catch((err) => notify(String(err)))
+                      }
+                    />
+                  </label>
+                ))}
+              </div>
+
+              <h3 className="card-title">{t.clubHub.sponsorOffers}</h3>
+              {sponsorOffers.length === 0 && (
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.clubHub.noOffers}</div>
+              )}
+              {sponsorOffers.map((offer) => (
+                <div key={offer.slot_type} className="news-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: 12.5 }}>
+                      {offer.sponsor_name} · {offer.slot_type}
+                    </div>
+                    <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                      {formatMoney(offer.upfront)} upfront · {formatMoney(offer.weekly)}/w ·{' '}
+                      {offer.target_wins} {t.clubHub.winsTarget}
+                    </div>
+                  </div>
+                  <button
+                    className="btn"
+                    style={{ marginLeft: 'auto' }}
+                    onClick={() =>
+                      void desktopApi
+                        .signSponsorship(offer)
+                        .then(() => {
+                          notify(t.clubHub.signed);
+                          return refresh();
+                        })
+                        .catch((e) => notify(String(e)))
+                    }
+                  >
+                    {t.clubHub.sign}
+                  </button>
+                </div>
+              ))}
+
               <h3 className="card-title">{t.clubHub.sponsors}</h3>
               {clubHub.sponsorships.map((sp) => (
                 <div key={sp.sponsorship_id} className="news-item" style={{ display: 'flex', justifyContent: 'space-between' }}>
@@ -1161,6 +1249,24 @@ export function App() {
                   {t.inspector.contract}:{' '}
                   <strong>{playerDetail.contract.end_date ?? '—'}</strong>
                 </div>
+              )}
+              {selectedPlayer && squad.some((p) => p.player_id === selectedPlayer.player_id) && (
+                <button
+                  className="btn"
+                  onClick={() =>
+                    void desktopApi
+                      .renewContract(selectedPlayer.player_id)
+                      .then((res) => {
+                        if (res) {
+                          notify(`${t.inspector.renewed} ${formatMoney(res.new_salary)} · ${res.new_end_date}`);
+                        }
+                        return refresh();
+                      })
+                      .catch((e) => notify(String(e)))
+                  }
+                >
+                  {t.inspector.renew}
+                </button>
               )}
               {playerDetail && (
                 <div>

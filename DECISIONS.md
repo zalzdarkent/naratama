@@ -47,3 +47,9 @@ Status: accepted (2026-11-25)
 Context: ADR-007 menunda substitusi/mentality karena engine mensimulasikan 90 menit sekaligus; memindahkan persistensi ke jalur kedua berisiko membuat ledger/statistik tidak konsisten.
 Decision: `MatchEngine` dipecah menjadi `LiveMatch` yang menyimpan `SimState`, parameter basis skor, dan jam internal; `advance_to` memutar menit bertahap, `adjust` mengganti pemain di lapangan + mentality lalu menghitung ulang parameter dari XI yang sedang bermain, dan `run_full` tetap identik dengan `simulate` (dibuktikan test paritas). Hasil akhir live match dikirim ke `MatchdayService::simulate_matchday` sebagai `preset_result`, sehingga persistensi, finansial, skorsing, berita, dan housekeeping tetap satu jalur.
 Consequences: Interaksi tersedia tanpa menduplikasi logika persistensi; batas 5 substitusi per sisi dan perubahan kekuatan hanya dihitung ulang saat ada penyesuaian (tanpa penyesuaian, hasil identik dengan simulasi lama).
+
+## ADR-009: Operasi Klub Lewat Ledger Tunggal
+Status: accepted (2026-11-25)
+Context: Flutter mengubah `teams.budget` langsung lalu mencatat ledger terpisah; di Rust `FinanceRepo::record_tx` sudah memindahkan budget, jadi menambah pengurangan manual akan menduplikasi arus kas dan merusak invariant `budget == SUM(finance_ledger.amount)`.
+Decision: `ClubOpsService` (kontrak, stadion, tiket, sponsor) hanya menulis `finance_ledger` untuk setiap mutasi kas; `teams.budget` tidak pernah disentuh langsung. Aturan angka mengikuti Flutter (gaji +15%, bonus 2 bulan, tier stadion +10% maksimal, $1.2k/kursi, 3 slot sponsor dengan upfront 1.2M/0.8M/0.5M × skala power).
+Consequences: Semua operasi baru otomatis konsisten dengan uji invariant 5 musim; UI menampilkan efek kas tanpa perhitungan ganda.
