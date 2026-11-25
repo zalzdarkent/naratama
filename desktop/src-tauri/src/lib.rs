@@ -14,8 +14,11 @@ use naratama_engine::{
     MatchdayOutcome, MatchdayService, NationalTeamSelectionService, NationalTeamService,
     NewsEngine, NewsItemRow,
     OfferResponseAction, OffseasonService, PlayerDetail, PreseasonCamp, PreparedFixture,
-    AcademyProspect, ClubOpsService, ContractRenewal, ManagerOfferRow, ManagerOfferService,
-    DutyRequestInfo, NationalSquadPlayer, OfferInfo, ReadService, SponsorOffer, StadiumExpansion,
+    AcademyProspect, BadgeShape, BadgeSymbol, ClubOpsService, ContractRenewal, JerseyPattern,
+    ManagerOfferRow, ManagerOfferService, build_crest_data_uri,
+    DutyRequestInfo, NationalLeader, NationalSquadPlayer, OfferInfo, ReadService,
+    ScheduledTransferInfo,
+    SponsorOffer, SquadStatRow, StadiumExpansion,
     ScoutInfo, ScoutReportInfo, ScoutingService, SeasonAwardRow, SeasonGenerator,
     SquadTacticsService,
     StadiumArchitecture, TeamDetail, TrainingFocus, TransferMarketService,
@@ -113,6 +116,73 @@ pub struct CustomClubInput {
     pub starting_budget: Money,
     #[serde(default)]
     pub ffp_enforcement: String,
+    #[serde(default)]
+    pub nickname: Option<String>,
+    #[serde(default)]
+    pub primary_color: Option<String>,
+    #[serde(default)]
+    pub secondary_color: Option<String>,
+    #[serde(default)]
+    pub badge_shape: Option<String>,
+    #[serde(default)]
+    pub badge_symbol: Option<String>,
+    #[serde(default)]
+    pub jersey_pattern: Option<String>,
+}
+
+fn badge_shape(value: Option<&str>) -> BadgeShape {
+    match value.unwrap_or("shield") {
+        "circle" => BadgeShape::Circle,
+        "diamond" => BadgeShape::Diamond,
+        "classic" => BadgeShape::Classic,
+        _ => BadgeShape::Shield,
+    }
+}
+
+fn badge_symbol(value: Option<&str>) -> BadgeSymbol {
+    match value.unwrap_or("soccer") {
+        "star" => BadgeSymbol::Star,
+        "crown" => BadgeSymbol::Crown,
+        "eagle" => BadgeSymbol::Eagle,
+        "flame" => BadgeSymbol::Flame,
+        _ => BadgeSymbol::Soccer,
+    }
+}
+
+fn jersey_pattern(value: Option<&str>) -> JerseyPattern {
+    match value.unwrap_or("plain") {
+        "stripes_vertical" => JerseyPattern::StripesVertical,
+        "stripes_horizontal" => JerseyPattern::StripesHorizontal,
+        "diagonal" => JerseyPattern::Diagonal,
+        _ => JerseyPattern::Plain,
+    }
+}
+
+#[tauri::command]
+fn preview_club_crest(
+    abbreviation: String,
+    primary_color: String,
+    secondary_color: String,
+    badge_shape_name: Option<String>,
+    badge_symbol_name: Option<String>,
+) -> String {
+    let req = CustomClubRequest {
+        name: "Preview".to_string(),
+        abbreviation,
+        country_id: CountryId(1),
+        founded_year: 2025,
+        primary_color,
+        secondary_color,
+        stadium_name: "Preview".to_string(),
+        stadium_architecture: StadiumArchitecture::CompactModern,
+        squad_preset: InitialSquadPreset::Competitive,
+        starting_budget: 1_000_000,
+        nickname: None,
+        badge_shape: Some(badge_shape(badge_shape_name.as_deref())),
+        badge_symbol: Some(badge_symbol(badge_symbol_name.as_deref())),
+        jersey_pattern: Some(JerseyPattern::Plain),
+    };
+    build_crest_data_uri(&req)
 }
 
 fn apply_ffp_mode(conn: &Connection, mode: &str) -> Result<(), String> {
@@ -394,12 +464,22 @@ fn start_custom_club_career(
             abbreviation: input.abbreviation,
             country_id: cid,
             founded_year: 2025,
-            primary_color: "#E5A93C".into(),
-            secondary_color: "#070D18".into(),
+            primary_color: input
+                .primary_color
+                .clone()
+                .unwrap_or_else(|| "#E5A93C".into()),
+            secondary_color: input
+                .secondary_color
+                .clone()
+                .unwrap_or_else(|| "#070D18".into()),
             stadium_name: input.stadium_name,
             stadium_architecture: StadiumArchitecture::CompactModern,
             squad_preset: preset,
             starting_budget: input.starting_budget.max(1_000_000),
+            nickname: input.nickname,
+            badge_shape: Some(badge_shape(input.badge_shape.as_deref())),
+            badge_symbol: Some(badge_symbol(input.badge_symbol.as_deref())),
+            jersey_pattern: Some(jersey_pattern(input.jersey_pattern.as_deref())),
         },
         SeasonId(1),
         init_date,
@@ -1482,6 +1562,60 @@ fn get_national_squad(
 }
 
 #[tauri::command]
+fn get_squad_statistics(state: State<'_, AppState>) -> Result<Vec<SquadStatRow>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::squad_statistics(&active.conn, active.user_team_id, active.season_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_scheduled_transfers(
+    state: State<'_, AppState>,
+) -> Result<Vec<ScheduledTransferInfo>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::scheduled_transfers(&active.conn, active.user_team_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_logo_map(
+    state: State<'_, AppState>,
+    team_ids: Vec<i64>,
+) -> Result<Vec<(i64, String)>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::logo_map(&active.conn, &team_ids).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_national_leaders(state: State<'_, AppState>) -> Result<Vec<NationalLeader>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::national_leaders(&active.conn, 20).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
         .active
@@ -1979,6 +2113,7 @@ pub fn run() {
             list_teams_for_division,
             start_new_career,
             start_custom_club_career,
+            preview_club_crest,
             load_career_slot,
             leave_career,
             get_dashboard,
@@ -2023,6 +2158,10 @@ pub fn run() {
             respond_friendly_callup,
             get_called_up_countries,
             get_national_squad,
+            get_squad_statistics,
+            get_scheduled_transfers,
+            get_logo_map,
+            get_national_leaders,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

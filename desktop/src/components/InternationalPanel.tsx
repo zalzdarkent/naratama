@@ -3,6 +3,7 @@ import {
   desktopApi,
   DutyRequestDto,
   HonourRowDto,
+  NationalLeaderDto,
   NationalSquadPlayerDto,
 } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
@@ -19,6 +20,7 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
   const [countries, setCountries] = useState<[number, string][]>([]);
   const [countryId, setCountryId] = useState<number>(0);
   const [squad, setSquad] = useState<NationalSquadPlayerDto[]>([]);
+  const [leaders, setLeaders] = useState<NationalLeaderDto[]>([]);
 
   const load = async () => {
     const [p, d, c] = await Promise.all([
@@ -28,6 +30,7 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
     ]);
     setPodiums(p);
     setDuties(d);
+    void desktopApi.getNationalLeaders().then(setLeaders).catch(() => setLeaders([]));
     setCountries(c);
     setCountryId((cur) => (cur === 0 && c.length > 0 ? c[0][0] : cur));
   };
@@ -77,6 +80,25 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
         </select>
         {squad.length === 0 && (
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.intl.noSquad}</div>
+        )}
+        {leaders.length > 0 && (
+          <>
+            <h4 style={{ fontSize: 12.5, margin: '10px 0 4px', color: 'var(--accent)' }}>
+              {t.intl.mostCaps}
+            </h4>
+            {leaders.slice(0, 10).map((l, idx) => (
+              <div key={l.player_id} className="news-item" style={{ display: 'flex', gap: 8, fontSize: 12 }}>
+                <span className="tabular" style={{ width: 18, color: 'var(--text-dim)' }}>
+                  {idx + 1}
+                </span>
+                <span style={{ fontWeight: 600 }}>{l.player_name}</span>
+                <span style={{ color: 'var(--text-dim)' }}>{l.country_name}</span>
+                <span className="tabular" style={{ marginLeft: 'auto' }}>
+                  {l.caps} caps · OVR {l.power}
+                </span>
+              </div>
+            ))}
+          </>
         )}
         {squad.map((p) => (
           <div key={p.player_id} className="news-item" style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>

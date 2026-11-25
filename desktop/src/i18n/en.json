@@ -44,7 +44,27 @@
     "noArchives": "No archives in saves/exports yet.",
     "importTarget": "Target Slot",
     "importAction": "Import",
-    "imported": "Save imported into slot"
+    "imported": "Save imported into slot",
+    "nickname": "Club Nickname",
+    "badgeShape": "Badge Shape",
+    "badgeSymbol": "Badge Symbol",
+    "jerseyPattern": "Jersey Pattern",
+    "primaryColor": "Primary Color",
+    "secondaryColor": "Secondary Color",
+    "shield": "Shield",
+    "circle": "Circle",
+    "diamond": "Diamond",
+    "classic": "Classic",
+    "soccer": "Soccer",
+    "star": "Star",
+    "crown": "Crown",
+    "eagle": "Eagle",
+    "flame": "Flame",
+    "plain": "Plain",
+    "stripesVertical": "Vertical Stripes",
+    "stripesHorizontal": "Horizontal Stripes",
+    "diagonal": "Diagonal",
+    "preview": "Crest preview"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -96,7 +116,9 @@
     "value": "Market Value",
     "starter": "XI",
     "saved": "Tactics saved.",
-    "trainResult": "Training done, players improved:"
+    "trainResult": "Training done, players improved:",
+    "statistics": "Statistics",
+    "formation": "Formation"
   },
   "market": {
     "searchPlaceholder": "Search player name...",
@@ -110,7 +132,10 @@
     "incoming": "Incoming Offers for Your Players",
     "noIncoming": "No incoming offers.",
     "accept": "Accept",
-    "reject": "Reject"
+    "reject": "Reject",
+    "listed": "Listed Players",
+    "scheduled": "Scheduled Transfers",
+    "noScheduled": "No scheduled transfers yet."
   },
   "clubHub": {
     "facilities": "Club Facilities",
@@ -178,7 +203,8 @@
     "callupRequests": "Player Release Requests",
     "noCallups": "No release requests.",
     "release": "Release",
-    "hold": "Hold"
+    "hold": "Hold",
+    "mostCaps": "Most Capped Players"
   },
   "match": {
     "title": "Match Replay",
@@ -269,7 +295,10 @@
     "keyPlayers": "Key Players",
     "recent": "Recent Results",
     "next": "Next Fixtures",
-    "noMatches": "No matches yet."
+    "noMatches": "No matches yet.",
+    "payroll": "Weekly Payroll",
+    "trophies": "Trophies",
+    "fullSquad": "Full Squad"
   },
   "dossier": {
     "title": "TACTICAL DOSSIER",

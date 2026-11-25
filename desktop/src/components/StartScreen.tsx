@@ -46,6 +46,13 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
   const [abbr, setAbbr] = useState('NRT');
   const [stadiumName, setStadiumName] = useState('Gelanggang Naratama');
   const [preset, setPreset] = useState<'youth' | 'competitive' | 'veteran'>('competitive');
+  const [nickname, setNickname] = useState('');
+  const [primaryColor, setPrimaryColor] = useState('#E5A93C');
+  const [secondaryColor, setSecondaryColor] = useState('#070D18');
+  const [badgeShape, setBadgeShape] = useState('shield');
+  const [badgeSymbol, setBadgeSymbol] = useState('soccer');
+  const [jerseyPattern, setJerseyPattern] = useState('plain');
+  const [crest, setCrest] = useState('');
   const [budget, setBudget] = useState<number>(15_000_000);
 
   const loadSlots = async () => {
@@ -179,6 +186,19 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
     }
   };
 
+  useEffect(() => {
+    if (mode !== 'custom_club') return;
+    let active = true;
+    void desktopApi
+      .previewClubCrest(abbr, primaryColor, secondaryColor, badgeShape, badgeSymbol)
+      .then((uri) => {
+        if (active) setCrest(uri);
+      });
+    return () => {
+      active = false;
+    };
+  }, [mode, abbr, primaryColor, secondaryColor, badgeShape, badgeSymbol]);
+
   const handleStartCustom = async () => {
     if (!countryId || !clubName.trim()) return;
     setBusy(true);
@@ -194,6 +214,12 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
         preset,
         starting_budget: Math.max(1_000_000, budget),
         ffp_enforcement: ffp,
+        nickname: nickname.trim() || undefined,
+        primary_color: primaryColor,
+        secondary_color: secondaryColor,
+        badge_shape: badgeShape as 'shield' | 'circle' | 'diamond' | 'classic',
+        badge_symbol: badgeSymbol as 'soccer' | 'star' | 'crown' | 'eagle' | 'flame',
+        jersey_pattern: jerseyPattern as 'plain' | 'stripes_vertical' | 'stripes_horizontal' | 'diagonal',
       });
       onCareerReady(snap);
     } catch (err) {
@@ -473,6 +499,46 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                 <input className="input" value={stadiumName} onChange={(e) => setStadiumName(e.target.value)} />
               </label>
               <label className="form-field">
+                {t.start.nickname}
+                <input className="input" value={nickname} onChange={(e) => setNickname(e.target.value)} />
+              </label>
+              <label className="form-field">
+                {t.start.badgeShape}
+                <select className="select" value={badgeShape} onChange={(e) => setBadgeShape(e.target.value)}>
+                  <option value="shield">{t.start.shield}</option>
+                  <option value="circle">{t.start.circle}</option>
+                  <option value="diamond">{t.start.diamond}</option>
+                  <option value="classic">{t.start.classic}</option>
+                </select>
+              </label>
+              <label className="form-field">
+                {t.start.badgeSymbol}
+                <select className="select" value={badgeSymbol} onChange={(e) => setBadgeSymbol(e.target.value)}>
+                  <option value="soccer">{t.start.soccer}</option>
+                  <option value="star">{t.start.star}</option>
+                  <option value="crown">{t.start.crown}</option>
+                  <option value="eagle">{t.start.eagle}</option>
+                  <option value="flame">{t.start.flame}</option>
+                </select>
+              </label>
+              <label className="form-field">
+                {t.start.jerseyPattern}
+                <select className="select" value={jerseyPattern} onChange={(e) => setJerseyPattern(e.target.value)}>
+                  <option value="plain">{t.start.plain}</option>
+                  <option value="stripes_vertical">{t.start.stripesVertical}</option>
+                  <option value="stripes_horizontal">{t.start.stripesHorizontal}</option>
+                  <option value="diagonal">{t.start.diagonal}</option>
+                </select>
+              </label>
+              <label className="form-field">
+                {t.start.primaryColor}
+                <input className="input" type="color" value={primaryColor} onChange={(e) => setPrimaryColor(e.target.value)} />
+              </label>
+              <label className="form-field">
+                {t.start.secondaryColor}
+                <input className="input" type="color" value={secondaryColor} onChange={(e) => setSecondaryColor(e.target.value)} />
+              </label>
+              <label className="form-field">
                 {t.start.preset}
                 <select
                   className="select"
@@ -508,6 +574,23 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                   <option value="strict">{t.start.ffpStrict}</option>
                 </select>
               </label>
+            </div>
+            <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 14 }}>
+              {crest && (
+                <img
+                  src={crest}
+                  alt={abbr}
+                  style={{ width: 84, height: 84, borderRadius: 10, background: '#0b1424' }}
+                />
+              )}
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
+                <div style={{ fontWeight: 700, color: 'var(--text)' }}>
+                  {clubName} {nickname ? `· ${nickname}` : ''}
+                </div>
+                <div>
+                  {abbr} · {t.start.preview}
+                </div>
+              </div>
             </div>
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
               <button className="btn btn-primary" disabled={busy || !countryId} onClick={() => void handleStartCustom()}>

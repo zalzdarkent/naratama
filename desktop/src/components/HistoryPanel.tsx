@@ -8,13 +8,13 @@ interface HistoryPanelProps {
 }
 
 const AWARD_LABELS: Record<number, string> = {
-  0: 'MVP',
   1: 'Top Scorer',
-  2: 'Young Player',
-  3: 'Ballon d\'Or',
-  4: 'Goalkeeper',
-  5: 'Manager',
-  6: 'Team of the Season',
+  2: 'MVP',
+  3: 'Young Player',
+  4: "Ballon d'Or",
+  5: 'Golden Glove',
+  6: 'Team of the Year',
+  7: 'Manager of the Year',
 };
 
 export function HistoryPanel({ locale, currentSeasonId }: HistoryPanelProps) {
@@ -97,23 +97,40 @@ export function HistoryPanel({ locale, currentSeasonId }: HistoryPanelProps) {
       </section>
 
       <section className="card">
-        <h3 className="card-title">{t.history.awards}</h3>
+        <h3 className="card-title">🏆 {t.history.awards}</h3>
         {awards.length === 0 && (
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.history.noAwards}</div>
         )}
-        {awards.map((a, idx) => (
-          <div key={idx} className="news-item" style={{ display: 'flex', gap: 8 }}>
-            <span style={{ fontSize: 12, fontWeight: 800, color: 'var(--gala-gold)' }}>
-              {AWARD_LABELS[a.award_type] ?? `Award ${a.award_type}`}
-            </span>
-            <span style={{ fontSize: 12.5 }}>{a.player_name ?? a.team_name ?? '—'}</span>
-            <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>{a.team_name ?? ''}</span>
-            <span className="tabular" style={{ marginLeft: 'auto', fontSize: 11.5 }}>
-              {a.goals ? `${a.goals} ⚽` : ''}
-              {a.rating ? ` ${a.rating.toFixed(1)}` : ''}
-            </span>
-          </div>
-        ))}
+        <div style={{ display: 'grid', gap: 8 }}>
+          {awards.map((a, idx) => (
+            <div
+              key={idx}
+              className="news-item"
+              style={{
+                display: 'flex',
+                gap: 10,
+                alignItems: 'center',
+                borderLeft: '3px solid var(--gala-gold)',
+                paddingLeft: 8,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>🎖</span>
+              <div>
+                <div style={{ fontSize: 11.5, fontWeight: 800, color: 'var(--gala-gold)' }}>
+                  {(AWARD_LABELS[a.award_type] ?? `Award ${a.award_type}`).toUpperCase()}
+                </div>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>{a.player_name ?? a.team_name ?? '—'}</div>
+                <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                  {[a.team_name, a.subtitle, a.year ? String(a.year) : null].filter(Boolean).join(' · ')}
+                </div>
+              </div>
+              <span className="tabular" style={{ marginLeft: 'auto', fontSize: 12.5 }}>
+                {a.goals ? `${a.goals} ⚽` : ''}
+                {a.rating ? ` ${a.rating.toFixed(1)}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
       </section>
     </div>
   );

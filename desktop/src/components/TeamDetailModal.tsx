@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { desktopApi, formatMoney, TeamDetailDto } from '../api/bridge';
+import { desktopApi, formatMoney, logoSrc, TeamDetailDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface TeamDetailModalProps {
@@ -47,11 +47,20 @@ export function TeamDetailModal({
         ) : (
           <>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+              <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
+                {logoSrc(detail.team.logo_base64) && (
+                  <img
+                    src={logoSrc(detail.team.logo_base64) ?? ''}
+                    alt={detail.team.abbreviation}
+                    style={{ width: 46, height: 46, borderRadius: 8, background: '#0b1424' }}
+                  />
+                )}
               <div>
                 <div style={{ fontSize: 20, fontWeight: 800 }}>{detail.team.name}</div>
                 <div style={{ fontSize: 12, color: 'var(--text-dim)' }}>
                   {detail.team.abbreviation} · {detail.league_name} · {t.team.division} {detail.team.division}
                 </div>
+              </div>
               </div>
               <button className="btn" onClick={onClose}>
                 {t.dashboard.close}
@@ -74,6 +83,12 @@ export function TeamDetailModal({
               <span className="pill tabular">
                 {t.team.avgPower}: <strong>{detail.average_power}</strong>
               </span>
+              <span className="pill tabular">
+                {t.team.payroll}: <strong>{formatMoney(detail.weekly_payroll)}</strong>
+              </span>
+              <span className="pill tabular">
+                {t.team.trophies}: <strong>{detail.trophies.length}</strong>
+              </span>
               {detail.stadium && (
                 <span className="pill tabular">
                   {detail.stadium.name} · {capacity.toLocaleString()}
@@ -86,6 +101,23 @@ export function TeamDetailModal({
                 {t.team.dossier}
               </button>
             )}
+
+            <h4 style={{ fontSize: 13, margin: '4px 0 6px' }}>{t.team.fullSquad}</h4>
+            <div style={{ maxHeight: 170, overflowY: 'auto', marginBottom: 10 }}>
+              <table className="data-table tabular">
+                <tbody>
+                  {detail.squad.map((p) => (
+                    <tr key={p.player_id} style={{ cursor: 'pointer' }} onClick={() => onOpenPlayer(p.player_id)}>
+                      <td>{p.position_id}</td>
+                      <td style={{ fontWeight: 600 }}>{p.name}</td>
+                      <td>{p.age}</td>
+                      <td>{p.power}</td>
+                      <td>{formatMoney(p.value)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
 
             <div className="grid-2">
               <div>
@@ -121,6 +153,17 @@ export function TeamDetailModal({
                     </span>
                   </div>
                 ))}
+                {detail.trophies.length > 0 && (
+                  <>
+                    <h4 style={{ fontSize: 13, margin: '10px 0 6px' }}>🏆 {t.team.trophies}</h4>
+                    {detail.trophies.slice(0, 8).map((tr, idx) => (
+                      <div key={idx} style={{ fontSize: 11.5 }}>
+                        S{tr.season_id} · {tr.tournament_name}
+                        {tr.score_line ? ` (${tr.score_line})` : ''}
+                      </div>
+                    ))}
+                  </>
+                )}
                 <h4 style={{ fontSize: 13, margin: '10px 0 6px' }}>{t.team.next}</h4>
                 {detail.next_fixtures.map((f) => (
                   <div key={f.match_id} className="news-item" style={{ display: 'flex', gap: 6, fontSize: 12 }}>

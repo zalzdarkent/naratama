@@ -44,7 +44,27 @@
     "noArchives": "Belum ada arsip di folder saves/exports.",
     "importTarget": "Slot Tujuan",
     "importAction": "Impor",
-    "imported": "Save berhasil diimpor ke slot"
+    "imported": "Save berhasil diimpor ke slot",
+    "nickname": "Julukan Klub",
+    "badgeShape": "Bentuk Lambang",
+    "badgeSymbol": "Simbol Lambang",
+    "jerseyPattern": "Pola Jersey",
+    "primaryColor": "Warna Utama",
+    "secondaryColor": "Warna Kedua",
+    "shield": "Perisai",
+    "circle": "Lingkaran",
+    "diamond": "Berlian",
+    "classic": "Klasik",
+    "soccer": "Bola",
+    "star": "Bintang",
+    "crown": "Mahkota",
+    "eagle": "Elang",
+    "flame": "Api",
+    "plain": "Polos",
+    "stripesVertical": "Garis Vertikal",
+    "stripesHorizontal": "Garis Horizontal",
+    "diagonal": "Diagonal",
+    "preview": "Pratinjau lambang"
   },
   "nav": {
     "dashboard": "Ringkasan",
@@ -96,7 +116,9 @@
     "value": "Nilai Pasar",
     "starter": "XI",
     "saved": "Taktik tersimpan.",
-    "trainResult": "Latihan selesai, pemain meningkat:"
+    "trainResult": "Latihan selesai, pemain meningkat:",
+    "statistics": "Statistik",
+    "formation": "Formasi"
   },
   "market": {
     "searchPlaceholder": "Cari nama pemain...",
@@ -110,7 +132,10 @@
     "incoming": "Tawaran Masuk untuk Pemain Anda",
     "noIncoming": "Tidak ada tawaran masuk.",
     "accept": "Terima",
-    "reject": "Tolak"
+    "reject": "Tolak",
+    "listed": "Pemain Terdaftar",
+    "scheduled": "Transfer Terjadwal",
+    "noScheduled": "Belum ada transfer terjadwal."
   },
   "clubHub": {
     "facilities": "Fasilitas Klub",
@@ -178,7 +203,8 @@
     "callupRequests": "Permintaan Pelepasan Pemain",
     "noCallups": "Tidak ada permintaan pelepasan.",
     "release": "Lepaskan",
-    "hold": "Tahan"
+    "hold": "Tahan",
+    "mostCaps": "Penampilan Terbanyak (Caps)"
   },
   "match": {
     "title": "Tayangan Ulang Laga",
@@ -269,7 +295,10 @@
     "keyPlayers": "Pemain Kunci",
     "recent": "Hasil Terakhir",
     "next": "Laga Berikutnya",
-    "noMatches": "Belum ada laga."
+    "noMatches": "Belum ada laga.",
+    "payroll": "Gaji Mingguan",
+    "trophies": "Trofi",
+    "fullSquad": "Seluruh Skuad"
   },
   "dossier": {
     "title": "DOSSIER ANALISIS TAKTIK",

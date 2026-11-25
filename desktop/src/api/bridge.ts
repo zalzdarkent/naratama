@@ -90,6 +90,7 @@ export interface InboxMessageDto {
   date: string;
   sender: string;
   is_read: boolean;
+  transfer_offer_id?: number | null;
 }
 
 export interface CountryRankDto {
@@ -297,6 +298,20 @@ export interface SeasonAwardRowDto {
   subtitle: string | null;
 }
 
+export interface TeamTrophyDto {
+  season_id: number;
+  tournament_name: string;
+  score_line: string | null;
+}
+
+export interface NationalLeaderDto {
+  player_id: number;
+  player_name: string;
+  country_name: string;
+  caps: number;
+  power: number;
+}
+
 export interface TeamDetailDto {
   team: TeamDto;
   stadium: {
@@ -314,6 +329,9 @@ export interface TeamDetailDto {
   top_players: PlayerDto[];
   recent_results: FixtureRowDto[];
   next_fixtures: FixtureRowDto[];
+  squad: PlayerDto[];
+  weekly_payroll: number;
+  trophies: TeamTrophyDto[];
 }
 
 export interface ContractDto {
@@ -411,6 +429,35 @@ export interface ManagerOfferDto {
   budget: number;
   power: number;
   from_power: number;
+}
+
+export interface SquadStatDto {
+  player_id: number;
+  player_name: string;
+  position_id: number;
+  age: number;
+  power: number;
+  matches_played: number;
+  starts: number;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  mvps: number;
+  rating: number;
+}
+
+export interface ScheduledTransferDto {
+  offer_id: number;
+  player_name: string;
+  from_team_name: string;
+  to_team_name: string;
+  offer_amount: number;
+  is_loan: boolean;
+  loan_seasons: number;
+  effective_date: string;
+  status: number;
 }
 
 export interface DutyRequestDto {
@@ -522,6 +569,12 @@ export interface CustomClubInputDto {
   preset: 'youth' | 'competitive' | 'veteran';
   starting_budget: number;
   ffp_enforcement: FfpMode;
+  nickname?: string;
+  primary_color?: string;
+  secondary_color?: string;
+  badge_shape?: 'shield' | 'circle' | 'diamond' | 'classic';
+  badge_symbol?: 'soccer' | 'star' | 'crown' | 'eagle' | 'flame';
+  jersey_pattern?: 'plain' | 'stripes_vertical' | 'stripes_horizontal' | 'diagonal';
 }
 
 export type FfpMode = 'off' | 'relaxed' | 'standard' | 'strict';
@@ -682,6 +735,12 @@ const PREVIEW_HUB: ClubHubDto = {
     ['SponsorshipUpfront', 4_500_000],
     ['PlayerWages', -2_400_000],
   ],
+};
+
+/** Seed logos are stored as raw base64 PNG; custom crests are already a data URI. */
+export const logoSrc = (raw?: string | null): string | null => {
+  if (!raw) return null;
+  return raw.startsWith('data:') ? raw : `data:image/png;base64,${raw}`;
 };
 
 export const desktopApi = {
@@ -910,6 +969,35 @@ export const desktopApi = {
   },
   async getNationalSquad(countryId: number): Promise<NationalSquadPlayerDto[]> {
     return (await tauriInvoke<NationalSquadPlayerDto[]>('get_national_squad', { countryId })) ?? [];
+  },
+  async previewClubCrest(
+    abbreviation: string,
+    primaryColor: string,
+    secondaryColor: string,
+    badgeShape: string,
+    badgeSymbol: string,
+  ): Promise<string> {
+    return (
+      (await tauriInvoke<string>('preview_club_crest', {
+        abbreviation,
+        primaryColor,
+        secondaryColor,
+        badgeShapeName: badgeShape,
+        badgeSymbolName: badgeSymbol,
+      })) ?? ''
+    );
+  },
+  async getSquadStatistics(): Promise<SquadStatDto[]> {
+    return (await tauriInvoke<SquadStatDto[]>('get_squad_statistics')) ?? [];
+  },
+  async getScheduledTransfers(): Promise<ScheduledTransferDto[]> {
+    return (await tauriInvoke<ScheduledTransferDto[]>('get_scheduled_transfers')) ?? [];
+  },
+  async getLogoMap(teamIds: number[]): Promise<[number, string][]> {
+    return (await tauriInvoke<[number, string][]>('get_logo_map', { teamIds })) ?? [];
+  },
+  async getNationalLeaders(): Promise<NationalLeaderDto[]> {
+    return (await tauriInvoke<NationalLeaderDto[]>('get_national_leaders')) ?? [];
   },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;

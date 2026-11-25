@@ -53,3 +53,9 @@ Status: accepted (2026-11-25)
 Context: Flutter mengubah `teams.budget` langsung lalu mencatat ledger terpisah; di Rust `FinanceRepo::record_tx` sudah memindahkan budget, jadi menambah pengurangan manual akan menduplikasi arus kas dan merusak invariant `budget == SUM(finance_ledger.amount)`.
 Decision: `ClubOpsService` (kontrak, stadion, tiket, sponsor) hanya menulis `finance_ledger` untuk setiap mutasi kas; `teams.budget` tidak pernah disentuh langsung. Aturan angka mengikuti Flutter (gaji +15%, bonus 2 bulan, tier stadion +10% maksimal, $1.2k/kursi, 3 slot sponsor dengan upfront 1.2M/0.8M/0.5M × skala power).
 Consequences: Semua operasi baru otomatis konsisten dengan uji invariant 5 musim; UI menampilkan efek kas tanpa perhitungan ganda.
+
+## ADR-010: Crest Kustom sebagai SVG Data URI
+Status: accepted (2026-11-25)
+Context: Flutter membuat PNG 128×128 lalu menyimpannya sebagai base64; Rust belum punya encoder raster, dan menambah `image`/`png` menaikkan waktu build serta ukuran biner.
+Decision: Crest kustom dibangun deterministik sebagai SVG (bentuk perisai/lingkaran/berlian/klasik, simbol bola/bintang/mahkota/elang/api, singkatan klub, warna tervalidasi) lalu disimpan sebagai `data:image/svg+xml;base64,...` di `teams.logo_base64`. Seed logo lama tetap base64 PNG; helper UI `logoSrc` menambahkan prefix `data:image/png;base64,` bila belum ada.
+Consequences: Crest hanya beberapa ratus byte, tanpa dependensi baru; WebView merender SVG langsung dan campuran format lama/baru tetap tampil.

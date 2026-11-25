@@ -26,6 +26,31 @@ pub enum StadiumArchitecture {
     FutureArena,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BadgeShape {
+    Shield,
+    Circle,
+    Diamond,
+    Classic,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum BadgeSymbol {
+    Soccer,
+    Star,
+    Crown,
+    Eagle,
+    Flame,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JerseyPattern {
+    Plain,
+    StripesVertical,
+    StripesHorizontal,
+    Diagonal,
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CustomClubRequest {
     pub name: String,
@@ -38,6 +63,118 @@ pub struct CustomClubRequest {
     pub stadium_architecture: StadiumArchitecture,
     pub squad_preset: InitialSquadPreset,
     pub starting_budget: Money,
+    #[serde(default)]
+    pub nickname: Option<String>,
+    #[serde(default)]
+    pub badge_shape: Option<BadgeShape>,
+    #[serde(default)]
+    pub badge_symbol: Option<BadgeSymbol>,
+    #[serde(default)]
+    pub jersey_pattern: Option<JerseyPattern>,
+}
+
+/// Builds a deterministic SVG crest (stored as a data URI) for a custom club.
+///
+/// The desktop `WebView` renders SVG directly, so no raster encoder is needed and the
+/// crest stays a few hundred bytes instead of a 128×128 PNG.
+#[must_use]
+pub fn build_crest_data_uri(req: &CustomClubRequest) -> String {
+    let shape = req.badge_shape.unwrap_or(BadgeShape::Shield);
+    let symbol = req.badge_symbol.unwrap_or(BadgeSymbol::Soccer);
+    let primary = sanitize_color(&req.primary_color, "#E5A93C");
+    let secondary = sanitize_color(&req.secondary_color, "#070D18");
+    let abbrev = req
+        .abbreviation
+        .trim()
+        .to_uppercase()
+        .chars()
+        .filter(char::is_ascii_alphabetic)
+        .take(3)
+        .collect::<String>();
+
+    let body = match shape {
+        BadgeShape::Shield => {
+            "<path d='M8 6 H56 V34 C56 50 40 58 32 62 C24 58 8 50 8 34 Z' fill='var(p)' stroke='var(s)' stroke-width='3'/>"
+        }
+        BadgeShape::Circle => {
+            "<circle cx='32' cy='32' r='26' fill='var(p)' stroke='var(s)' stroke-width='3'/>"
+        }
+        BadgeShape::Diamond => {
+            "<path d='M32 4 L60 32 L32 60 L4 32 Z' fill='var(p)' stroke='var(s)' stroke-width='3'/>"
+        }
+        BadgeShape::Classic => {
+            "<circle cx='32' cy='32' r='26' fill='var(p)' stroke='var(s)' stroke-width='3'/><circle cx='32' cy='32' r='20' fill='none' stroke='var(s)' stroke-width='1.5'/>"
+        }
+    };
+    let icon = match symbol {
+        BadgeSymbol::Soccer => {
+            "<circle cx='32' cy='26' r='7' fill='var(s)'/><path d='M32 19 L34 16 M32 19 L30 16 M25 26 L21 24 M39 26 L43 24 M27 32 L24 36 M37 32 L40 36' stroke='var(s)' stroke-width='2' />"
+        }
+        BadgeSymbol::Star => {
+            "<path d='M32 12 L35.5 21.5 L45.5 21.5 L37.5 27.5 L40.5 37 L32 31.5 L23.5 37 L26.5 27.5 L18.5 21.5 L28.5 21.5 Z' fill='var(s)'/>"
+        }
+        BadgeSymbol::Crown => {
+            "<path d='M20 34 L20 22 L26 28 L32 18 L38 28 L44 22 L44 34 Z' fill='var(s)'/>"
+        }
+        BadgeSymbol::Eagle => {
+            "<path d='M32 16 C28 20 22 22 16 22 C22 26 26 28 30 30 L32 38 L34 30 C38 28 42 26 48 22 C42 22 36 20 32 16 Z' fill='var(s)'/>"
+        }
+        BadgeSymbol::Flame => {
+            "<path d='M32 14 C38 22 40 26 38 32 C36 38 32 38 32 42 C30 38 26 36 26 30 C26 26 29 22 32 14 Z' fill='var(s)'/>"
+        }
+    };
+    let text = if abbrev.is_empty() {
+        String::new()
+    } else {
+        format!(
+            "<text x='32' y='52' text-anchor='middle' font-family='Verdana,Arial,sans-serif' font-size='13' font-weight='bold' fill='{secondary}'>{abbrev}</text>"
+        )
+        .replace("{secondary}", &secondary)
+    };
+    let svg = format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64' width='128' height='128'>         <rect width='64' height='64' rx='10' fill='{secondary}'/>{body}{icon}{text}</svg>"
+    )
+    .replace("var(p)", &primary)
+    .replace("var(s)", &secondary);
+    format!(
+        "data:image/svg+xml;base64,{}",
+        base64_encode(svg.as_bytes())
+    )
+}
+
+fn sanitize_color(raw: &str, fallback: &str) -> String {
+    let trimmed = raw.trim();
+    let hex = trimmed.strip_prefix('#').unwrap_or(trimmed);
+    if (hex.len() == 6 || hex.len() == 3) && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+        format!("#{}", hex.to_lowercase())
+    } else {
+        fallback.to_string()
+    }
+}
+
+/// Minimal RFC 4648 base64 encoder (no padding-free variants needed here).
+fn base64_encode(input: &[u8]) -> String {
+    const TABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    let mut out = String::with_capacity(input.len().div_ceil(3) * 4);
+    for chunk in input.chunks(3) {
+        let b0 = u32::from(chunk[0]);
+        let b1 = chunk.get(1).copied().map_or(0, u32::from);
+        let b2 = chunk.get(2).copied().map_or(0, u32::from);
+        let triple = (b0 << 16) | (b1 << 8) | b2;
+        out.push(TABLE[((triple >> 18) & 0x3F) as usize] as char);
+        out.push(TABLE[((triple >> 12) & 0x3F) as usize] as char);
+        out.push(if chunk.len() > 1 {
+            TABLE[((triple >> 6) & 0x3F) as usize] as char
+        } else {
+            '='
+        });
+        out.push(if chunk.len() > 2 {
+            TABLE[(triple & 0x3F) as usize] as char
+        } else {
+            '='
+        });
+    }
+    out
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -172,8 +309,8 @@ impl CustomClubService {
         tx.execute(
             "INSERT INTO teams (
                 name, abbreviation, country_id, power, value, budget, division,
-                stadium_id, coach_id, founded_year
-             ) VALUES (?1, ?2, ?3, 62, 10000000, 0, ?4, ?5, 1, ?6)",
+                stadium_id, coach_id, founded_year, logo_base64
+             ) VALUES (?1, ?2, ?3, 62, 10000000, 0, ?4, ?5, 1, ?6, ?7)",
             params![
                 req.name.trim(),
                 req.abbreviation.trim(),
@@ -181,6 +318,7 @@ impl CustomClubService {
                 max_div,
                 stadium_id.0,
                 req.founded_year,
+                build_crest_data_uri(req),
             ],
         )
         .map_err(db_err)?;
@@ -284,7 +422,7 @@ impl CustomClubService {
                 stadium_id,
                 coach_id: naratama_model::CoachId(1),
                 founded_year: req.founded_year,
-                logo_base64: None,
+                logo_base64: Some(build_crest_data_uri(req)),
             },
             stadium_id,
             replaced_team_id,

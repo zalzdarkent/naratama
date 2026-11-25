@@ -151,6 +151,16 @@ pub struct TeamDetail {
     pub top_players: Vec<Player>,
     pub recent_results: Vec<FixtureRow>,
     pub next_fixtures: Vec<FixtureRow>,
+    pub squad: Vec<Player>,
+    pub weekly_payroll: i64,
+    pub trophies: Vec<TeamTrophy>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TeamTrophy {
+    pub season_id: i64,
+    pub tournament_name: String,
+    pub score_line: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -228,6 +238,37 @@ pub struct AcademyProspect {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SquadStatRow {
+    pub player_id: PlayerId,
+    pub player_name: String,
+    pub position_id: i32,
+    pub age: i32,
+    pub power: i32,
+    pub matches_played: i32,
+    pub starts: i32,
+    pub minutes: i32,
+    pub goals: i32,
+    pub assists: i32,
+    pub yellow_cards: i32,
+    pub red_cards: i32,
+    pub mvps: i32,
+    pub rating: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScheduledTransferInfo {
+    pub offer_id: i64,
+    pub player_name: String,
+    pub from_team_name: String,
+    pub to_team_name: String,
+    pub offer_amount: i64,
+    pub is_loan: bool,
+    pub loan_seasons: i32,
+    pub effective_date: String,
+    pub status: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DutyRequestInfo {
     pub duty_id: i64,
     pub player_name: String,
@@ -262,6 +303,15 @@ pub struct OfferInfo {
     pub loan_seasons: i32,
     pub created_date: String,
     pub counter_amount: Option<i64>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NationalLeader {
+    pub player_id: PlayerId,
+    pub player_name: String,
+    pub country_name: String,
+    pub caps: i32,
+    pub power: i32,
 }
 
 /// Read-only aggregates for the desktop data screens (standings, schedule, bracket, stats, history).
@@ -905,6 +955,8 @@ impl ReadService {
 
         let recent_results = Self::fixtures_for_team(conn, team_id, true, 5)?;
         let next_fixtures = Self::fixtures_for_team(conn, team_id, false, 5)?;
+        let weekly_payroll: i64 = squad.iter().map(|p| p.salary).sum();
+        let trophies = Self::club_trophy_rows(conn, team_id)?;
         Ok(Some(TeamDetail {
             team,
             stadium,
@@ -912,9 +964,12 @@ impl ReadService {
             squad_size,
             average_power,
             squad_value,
-            top_players: squad.into_iter().take(5).collect(),
+            top_players: squad.iter().take(5).cloned().collect(),
             recent_results,
             next_fixtures,
+            squad,
+            weekly_payroll,
+            trophies,
         }))
     }
 
@@ -1417,8 +1472,162 @@ impl ReadService {
         Ok(rows.filter_map(Result::ok).collect())
     }
 
+    /// Per-player season statistics for the squad statistics tab.
+    pub fn squad_statistics(
+        conn: &Connection,
+        team_id: TeamId,
+        season_id: SeasonId,
+    ) -> NaratamaResult<Vec<SquadStatRow>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT p.player_id, COALESCE(p.name, 'Unknown'), COALESCE(p.position_id, 8),
+                        COALESCE(p.age, 24), COALESCE(p.power, 60),
+                        COALESCE(ps.matches_played, 0), COALESCE(ps.starts, 0),
+                        COALESCE(ps.minutes, 0), COALESCE(ps.goals, 0), COALESCE(ps.assists, 0),
+                        COALESCE(ps.yellow_cards, 0), COALESCE(ps.red_cards, 0),
+                        COALESCE(ps.mvps, 0), COALESCE(ps.rating, 0)
+                 FROM team_players tp
+                 JOIN players p ON p.player_id = tp.player_id
+                 LEFT JOIN player_season_stats ps
+                        ON ps.player_id = p.player_id AND ps.season_id = ?2
+                 WHERE tp.team_id = ?1 AND COALESCE(p.status_id, 1) = 1
+                 ORDER BY COALESCE(ps.goals, 0) DESC, COALESCE(ps.rating, 0) DESC, p.power DESC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0, season_id.0], |r| {
+                Ok(SquadStatRow {
+                    player_id: PlayerId(r.get(0)?),
+                    player_name: r.get(1)?,
+                    position_id: r.get(2)?,
+                    age: r.get(3)?,
+                    power: r.get(4)?,
+                    matches_played: r.get(5)?,
+                    starts: r.get(6)?,
+                    minutes: r.get(7)?,
+                    goals: r.get(8)?,
+                    assists: r.get(9)?,
+                    yellow_cards: r.get(10)?,
+                    red_cards: r.get(11)?,
+                    mvps: r.get(12)?,
+                    rating: r.get(13)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// Transfer deals already agreed but waiting for the next window.
+    pub fn scheduled_transfers(
+        conn: &Connection,
+        team_id: TeamId,
+    ) -> NaratamaResult<Vec<ScheduledTransferInfo>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT o.offer_id, COALESCE(p.name, 'Player'), COALESCE(ft.name, ''),
+                        COALESCE(tt.name, ''), o.offer_amount, COALESCE(o.is_loan, 0),
+                        COALESCE(o.loan_seasons, 1), COALESCE(o.effective_date, ''),
+                        o.status
+                 FROM transfer_offers o
+                 LEFT JOIN players p ON p.player_id = o.player_id
+                 LEFT JOIN teams ft ON ft.team_id = o.from_team_id
+                 LEFT JOIN teams tt ON tt.team_id = o.to_team_id
+                 WHERE (o.from_team_id = ?1 OR o.to_team_id = ?1)
+                   AND o.status IN (2, 6, 9)
+                 ORDER BY COALESCE(o.effective_date, '') ASC, o.offer_id ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0], |r| {
+                Ok(ScheduledTransferInfo {
+                    offer_id: r.get(0)?,
+                    player_name: r.get(1)?,
+                    from_team_name: r.get(2)?,
+                    to_team_name: r.get(3)?,
+                    offer_amount: r.get(4)?,
+                    is_loan: r.get::<_, i32>(5)? != 0,
+                    loan_seasons: r.get(6)?,
+                    effective_date: r.get(7)?,
+                    status: r.get(8)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
     pub fn pending_manager_offer(conn: &Connection) -> NaratamaResult<Option<ManagerOfferRow>> {
         ManagerOfferService::pending_offer(conn)
+    }
+
+    /// Honours won by one club across every played season (from the roll of honour).
+    pub fn club_trophy_rows(conn: &Connection, team_id: TeamId) -> NaratamaResult<Vec<TeamTrophy>> {
+        let seasons = Self::seasons(conn)?;
+        let mut trophies = Vec::new();
+        for season in seasons {
+            for honour in Self::season_honours(conn, season.season_id)? {
+                if honour.winner_id == Some(team_id.0) {
+                    trophies.push(TeamTrophy {
+                        season_id: honour.edition_season_id,
+                        tournament_name: honour.tournament_name,
+                        score_line: honour.score_line,
+                    });
+                }
+            }
+        }
+        Ok(trophies)
+    }
+
+    /// Logo data URIs for the requested clubs (used by tables that only carry names).
+    pub fn logo_map(conn: &Connection, team_ids: &[i64]) -> NaratamaResult<Vec<(i64, String)>> {
+        if team_ids.is_empty() {
+            return Ok(Vec::new());
+        }
+        let mut stmt = conn
+            .prepare("SELECT team_id, logo_base64 FROM teams WHERE team_id = ?1")
+            .map_err(db_err)?;
+        let mut logos = Vec::new();
+        for team_id in team_ids {
+            let row: Option<Option<String>> = stmt
+                .query_row(params![team_id], |r| r.get(1))
+                .optional()
+                .map_err(db_err)?;
+            if let Some(Some(raw)) = row {
+                if !raw.trim().is_empty() {
+                    logos.push((*team_id, raw));
+                }
+            }
+        }
+        Ok(logos)
+    }
+
+    /// Most-capped players in the world (national team appearances).
+    pub fn national_leaders(
+        conn: &Connection,
+        limit: usize,
+    ) -> NaratamaResult<Vec<NationalLeader>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT p.player_id, COALESCE(p.name, 'Player'),
+                        COALESCE(c.name, ''), COALESCE(p.national_caps, 0), COALESCE(p.power, 60)
+                 FROM players p
+                 LEFT JOIN countries c ON c.country_id = p.country_id
+                 WHERE COALESCE(p.national_caps, 0) > 0
+                 ORDER BY COALESCE(p.national_caps, 0) DESC, COALESCE(p.power, 0) DESC
+                 LIMIT ?1",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![i64::try_from(limit).unwrap_or(20)], |r| {
+                Ok(NationalLeader {
+                    player_id: PlayerId(r.get(0)?),
+                    player_name: r.get(1)?,
+                    country_name: r.get(2)?,
+                    caps: r.get(3)?,
+                    power: r.get(4)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
     }
 
     pub fn confederation_for_country(

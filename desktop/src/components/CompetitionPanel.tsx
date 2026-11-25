@@ -4,6 +4,7 @@ import {
   desktopApi,
   FixtureRowDto,
   GroupTableDto,
+  logoSrc,
   StandingRowDto,
 } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
@@ -21,10 +22,12 @@ function StandingsTable({
   rows,
   userTeamId,
   onOpenTeam,
+  logos,
 }: {
   rows: StandingRowDto[];
   userTeamId: number;
   onOpenTeam: (teamId: number) => void;
+  logos: Map<number, string>;
 }) {
   const t = getDictionary('id');
   return (
@@ -51,6 +54,13 @@ function StandingsTable({
               style={{ fontWeight: 600, cursor: 'pointer' }}
               onClick={() => onOpenTeam(row.team_id)}
             >
+              {logoSrc(logos.get(row.team_id)) && (
+                <img
+                  src={logoSrc(logos.get(row.team_id)) ?? ''}
+                  alt=""
+                  style={{ width: 16, height: 16, marginRight: 6, verticalAlign: 'middle' }}
+                />
+              )}
               {row.team_name}
             </td>
             <td>{row.played}</td>
@@ -150,6 +160,7 @@ export function CompetitionPanel({
   const [tournamentId, setTournamentId] = useState<number>(0);
   const [overview, setOverview] = useState<CompetitionOverviewDto | null>(null);
   const [tab, setTab] = useState<Tab>('table');
+  const [logos, setLogos] = useState<Map<number, string>>(new Map());
 
   useEffect(() => {
     void desktopApi.listSeasonTournaments().then((list) => {
@@ -164,6 +175,14 @@ export function CompetitionPanel({
     void desktopApi.getCompetitionOverview(tournamentId).then((data) => {
       if (!active) return;
       setOverview(data);
+      if (!data) return;
+      const ids = Array.from(
+        new Set([
+          ...data.standings.map((r) => r.team_id),
+          ...data.groups.flatMap((g) => g.rows.map((r) => r.team_id)),
+        ]),
+      );
+      void desktopApi.getLogoMap(ids).then((pairs) => setLogos(new Map(pairs)));
     });
     return () => {
       active = false;
@@ -175,7 +194,12 @@ export function CompetitionPanel({
       <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 4, color: 'var(--accent)' }}>
         {t.competition.group} {group.group_id}
       </div>
-      <StandingsTable rows={group.rows} userTeamId={userTeamId} onOpenTeam={onOpenTeam} />
+      <StandingsTable
+        rows={group.rows}
+        userTeamId={userTeamId}
+        onOpenTeam={onOpenTeam}
+        logos={logos}
+      />
     </div>
   );
 
@@ -225,6 +249,7 @@ export function CompetitionPanel({
                     rows={overview.standings}
                     userTeamId={userTeamId}
                     onOpenTeam={onOpenTeam}
+                    logos={logos}
                   />
                 )
               : <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.competition.noTable}</div>}

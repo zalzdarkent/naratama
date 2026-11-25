@@ -7,12 +7,15 @@ import {
   formatMoney,
   InboxMessageDto,
   isTauriRuntime,
+  logoSrc,
   DossierDto,
   LiveMatchSnapshotDto,
   ManagerOfferDto,
   MatchStatisticsDto,
   OfferInfoDto,
+  ScheduledTransferDto,
   SponsorOfferDto,
+  SquadStatDto,
   PlayerDetailDto,
   MarketListingDto,
   MatchdayOutcomeDto,
@@ -117,6 +120,11 @@ export function App() {
   const [loanOffer, setLoanOffer] = useState(false);
   const [loanSeasons, setLoanSeasons] = useState(1);
   const [sponsorOffers, setSponsorOffers] = useState<SponsorOfferDto[]>([]);
+  const [squadTab, setSquadTab] = useState<'formation' | 'squad' | 'stats'>('formation');
+  const [squadStats, setSquadStats] = useState<SquadStatDto[]>([]);
+  const [marketTab, setMarketTab] = useState<'listed' | 'scheduled'>('listed');
+  const [scheduled, setScheduled] = useState<ScheduledTransferDto[]>([]);
+  const [logoMap, setLogoMap] = useState<Map<number, string>>(new Map());
 
   const openMatch = (matchId: number) => {
     void desktopApi
@@ -170,6 +178,11 @@ export function App() {
     setClubHub(hub);
     setInbox(msgs);
     setNewsFeed(dash.recent_news);
+    setScheduled(await desktopApi.getScheduledTransfers().catch(() => []));
+    const ids = dash.standings_preview.map((r) => r.team_id);
+    ids.push(dash.club.team_id);
+    const logos = await desktopApi.getLogoMap(Array.from(new Set(ids))).catch(() => []);
+    setLogoMap(new Map(logos.map(([id, raw]) => [id, raw])));
     if (!selectedPlayer && sq.length > 0) {
       setSelectedPlayer(sq[0]);
     }
@@ -204,6 +217,11 @@ export function App() {
     if (!inCareer || route !== 'news') return;
     void desktopApi.getNewsFeed(newsScope).then(setNewsFeed);
   }, [inCareer, route, newsScope]);
+
+  useEffect(() => {
+    if (route !== 'squad' || squadTab !== 'stats') return;
+    void desktopApi.getSquadStatistics().then(setSquadStats).catch(() => setSquadStats([]));
+  }, [route, squadTab]);
 
   const teamNameMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -463,9 +481,9 @@ export function App() {
     <div className="shell">
       <header className="topbar">
         <div className="topbar-brand">
-          {snapshot.club.logo_base64 ? (
+          {logoSrc(snapshot.club.logo_base64) ? (
             <img
-              src={snapshot.club.logo_base64}
+              src={logoSrc(snapshot.club.logo_base64) ?? ''}
               alt={snapshot.club.abbreviation}
               style={{ width: 38, height: 38, borderRadius: 8, objectFit: 'contain', background: '#0b1424' }}
             />
@@ -639,6 +657,13 @@ export function App() {
                           style={{ fontWeight: 600, cursor: 'pointer' }}
                           onClick={() => setTeamId(row.team_id)}
                         >
+                          {logoSrc(logoMap.get(row.team_id)) && (
+                            <img
+                              src={logoSrc(logoMap.get(row.team_id)) ?? ''}
+                              alt=""
+                              style={{ width: 16, height: 16, marginRight: 6, verticalAlign: 'middle' }}
+                            />
+                          )}
                           {row.team_name}
                         </td>
                         <td>{row.played}</td>
@@ -666,7 +691,26 @@ export function App() {
         )}
 
         {route === 'squad' && (
+          <>
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {(
+                [
+                  ['formation', t.squad.tacticsBoard],
+                  ['squad', t.squad.roster],
+                  ['stats', t.squad.statistics],
+                ] as [typeof squadTab, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`btn ${squadTab === key ? 'btn-primary' : ''}`}
+                  onClick={() => setSquadTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
           <div className="grid-2">
+            {(squadTab === 'formation' || squadTab === 'squad') && (
             <section className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <h3 className="card-title" style={{ margin: 0 }}>
@@ -733,7 +777,9 @@ export function App() {
                 )}
               </div>
             </section>
+            )}
 
+            {squadTab === 'squad' && (
             <section className="card">
               <h3 className="card-title">{t.squad.roster}</h3>
               <table className="data-table tabular">
@@ -786,7 +832,52 @@ export function App() {
                 </tbody>
               </table>
             </section>
+            )}
+
+            {squadTab === 'stats' && (
+              <section className="card" style={{ gridColumn: '1 / -1' }}>
+                <h3 className="card-title">{t.squad.statistics}</h3>
+                <table className="data-table tabular">
+                  <thead>
+                    <tr>
+                      <th>{t.squad.player}</th>
+                      <th>{t.squad.position}</th>
+                      <th>{t.squad.age}</th>
+                      <th>{t.stats.matches}</th>
+                      <th>{t.stats.minutes}</th>
+                      <th>{t.stats.goals}</th>
+                      <th>{t.stats.assists}</th>
+                      <th>{t.stats.cards}</th>
+                      <th>MVP</th>
+                      <th>{t.stats.rating}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {squadStats.map((row) => (
+                      <tr key={row.player_id}>
+                        <td style={{ fontWeight: 600 }}>{row.player_name}</td>
+                        <td>{row.position_id}</td>
+                        <td>{row.age}</td>
+                        <td>{row.matches_played}</td>
+                        <td>{row.minutes}</td>
+                        <td>{row.goals}</td>
+                        <td>{row.assists}</td>
+                        <td>
+                          {row.yellow_cards > 0 && `🟨${row.yellow_cards} `}
+                          {row.red_cards > 0 && `🟥${row.red_cards}`}
+                        </td>
+                        <td>{row.mvps}</td>
+                        <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
+                          {(row.rating / 10).toFixed(1)}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </section>
+            )}
           </div>
+          </>
         )}
 
         {route === 'competitions' && (
@@ -838,6 +929,48 @@ export function App() {
 
         {route === 'market' && (
           <section className="card">
+            <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+              {(
+                [
+                  ['listed', t.market.listed],
+                  ['scheduled', t.market.scheduled],
+                ] as [typeof marketTab, string][]
+              ).map(([key, label]) => (
+                <button
+                  key={key}
+                  className={`btn ${marketTab === key ? 'btn-primary' : ''}`}
+                  onClick={() => setMarketTab(key)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {marketTab === 'scheduled' && (
+              <>
+                {scheduled.length === 0 && (
+                  <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.market.noScheduled}</div>
+                )}
+                {scheduled.map((row) => (
+                  <div key={row.offer_id} className="news-item" style={{ display: 'flex', gap: 8, fontSize: 12.5 }}>
+                    <span style={{ fontWeight: 700 }}>{row.player_name}</span>
+                    <span style={{ color: 'var(--text-dim)' }}>
+                      {row.from_team_name} → {row.to_team_name}
+                    </span>
+                    <span className="tabular">{formatMoney(row.offer_amount)}</span>
+                    {row.is_loan && (
+                      <span className="pill">
+                        {t.market.loan} {row.loan_seasons}
+                      </span>
+                    )}
+                    <span className="tabular" style={{ marginLeft: 'auto', color: 'var(--text-dim)' }}>
+                      {row.effective_date || '—'}
+                    </span>
+                  </div>
+                ))}
+              </>
+            )}
+            {marketTab === 'listed' && (
+            <>
             <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
               <input
                 className="input"
@@ -925,6 +1058,8 @@ export function App() {
                 })}
               </tbody>
             </table>
+            </>
+            )}
 
             <h3 className="card-title" style={{ marginTop: 16 }}>
               {t.market.incoming} ({incomingOffers.length})
@@ -1220,6 +1355,40 @@ export function App() {
                 </div>
                 <div style={{ fontSize: 12, color: 'var(--accent)' }}>{m.sender}</div>
                 <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{m.body}</div>
+                {m.transfer_offer_id ? (
+                  <div style={{ display: 'flex', gap: 6, marginTop: 8 }}>
+                    <button
+                      className="btn btn-primary"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void desktopApi
+                          .respondTransferOffer(m.transfer_offer_id as number, true)
+                          .then((msg) => {
+                            notify(msg);
+                            return refresh();
+                          })
+                          .catch((err) => notify(String(err)));
+                      }}
+                    >
+                      {t.market.accept}
+                    </button>
+                    <button
+                      className="btn btn-danger"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void desktopApi
+                          .respondTransferOffer(m.transfer_offer_id as number, false)
+                          .then((msg) => {
+                            notify(msg);
+                            return refresh();
+                          })
+                          .catch((err) => notify(String(err)));
+                      }}
+                    >
+                      {t.market.reject}
+                    </button>
+                  </div>
+                ) : null}
               </div>
             ))}
           </section>
