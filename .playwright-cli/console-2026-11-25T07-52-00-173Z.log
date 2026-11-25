@@ -1,5 +1,0 @@
-[     182ms] [INFO] %cDownload the React DevTools for a better development experience: https://react.dev/link/react-devtools font-weight:bold @ http://127.0.0.1:5173/node_modules/.vite/deps/chunk-KO4TKKO3.js?v=0bcbfcae:21897
-[     709ms] [WARNING] [.WebGL-0x1724000ff200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:5173/:1
-[     725ms] [WARNING] [.WebGL-0x1724000ff200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:5173/:1
-[     742ms] [WARNING] [.WebGL-0x1724000ff200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels @ http://127.0.0.1:5173/:1
-[     751ms] [WARNING] [.WebGL-0x1724000ff200]GL Driver Message (OpenGL, Performance, GL_CLOSE_PATH_NV, High): GPU stall due to ReadPixels (this message will no longer repeat) @ http://127.0.0.1:5173/:1
