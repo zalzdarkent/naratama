@@ -244,7 +244,12 @@
     "balanced": "Balanced",
     "attacking": "Attacking",
     "commit": "Commit & Continue",
-    "shootout": "Shootout kick"
+    "shootout": "Shootout kick",
+    "halfTime": "Half Time",
+    "toHalf": "To 45'",
+    "abandon": "Close",
+    "homeSide": "Home",
+    "awaySide": "Away"
   },
   "competition": {
     "standings": "Standings",

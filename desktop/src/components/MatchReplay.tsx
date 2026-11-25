@@ -178,16 +178,13 @@ export function MatchReplay({ locale, userTeamId, replay, onClose }: MatchReplay
             .map((ev, idx) => (
               <div
                 key={`${ev.minute}-${ev.event_type}-${idx}`}
-                className="news-item"
-                style={{ display: 'flex', gap: 8, alignItems: 'baseline' }}
+                className={`event-row ${teamName(ev.side) === replay[userIsHome ? 'home_name' : 'away_name'] ? 'mine' : ''}`}
               >
-                <span className="tabular" style={{ width: 34, color: 'var(--text-dim)' }}>
-                  {ev.minute}'
-                </span>
-                <span style={{ fontWeight: 700, fontSize: 12.5 }}>{label(ev)}</span>
-                <span style={{ fontSize: 12.5 }}>
-                  {ev.player_name ?? ''} · {teamName(ev.side)}
-                </span>
+                <span className="event-minute tabular">{ev.minute}'</span>
+                <span className="event-label">{label(ev)}</span>
+                <span className="event-player">{ev.player_name ?? '—'}</span>
+                {ev.detail && <span className="event-detail">{ev.detail}</span>}
+                <span className="event-team">{teamName(ev.side)}</span>
               </div>
             ))}
         </div>

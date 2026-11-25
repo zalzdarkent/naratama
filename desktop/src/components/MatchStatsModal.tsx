@@ -1,4 +1,5 @@
-import { MatchStatisticsDto } from '../api/bridge';
+import { useEffect, useState } from 'react';
+import { desktopApi, logoSrc, MatchStatisticsDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface MatchStatsModalProps {
@@ -19,6 +20,14 @@ export function MatchStatsModal({
   onOpenTeam,
 }: MatchStatsModalProps) {
   const t = getDictionary(locale);
+  const [logos, setLogos] = useState<Map<number, string>>(new Map());
+
+  useEffect(() => {
+    void desktopApi
+      .getLogoMap([stats.home_team_id, stats.away_team_id])
+      .then((pairs) => setLogos(new Map(pairs)))
+      .catch(() => setLogos(new Map()));
+  }, [stats.home_team_id, stats.away_team_id]);
 
   const yellowHome = stats.players
     .filter((p) => p.team_id === stats.home_team_id)
@@ -123,16 +132,30 @@ export function MatchStatsModal({
               style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center' }}
               onClick={() => onOpenTeam(stats.home_team_id)}
             >
+              {logoSrc(logos.get(stats.home_team_id)) && (
+                <img
+                  src={logoSrc(logos.get(stats.home_team_id)) ?? ''}
+                  alt=""
+                  style={{ width: 26, height: 26 }}
+                />
+              )}
               {stats.home_name}
             </span>
             <span className="tabular" style={{ fontSize: 26, fontWeight: 900 }}>
               {stats.home_goals} - {stats.away_goals}
             </span>
             <span
-              style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer' }}
+              style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center' }}
               onClick={() => onOpenTeam(stats.away_team_id)}
             >
               {stats.away_name}
+              {logoSrc(logos.get(stats.away_team_id)) && (
+                <img
+                  src={logoSrc(logos.get(stats.away_team_id)) ?? ''}
+                  alt=""
+                  style={{ width: 26, height: 26 }}
+                />
+              )}
             </span>
           </div>
           {stats.penalty_home_goals !== null &&

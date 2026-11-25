@@ -1533,8 +1533,8 @@ export function App() {
                       onClick={() => openMatch(o.match_id)}
                     >
                       <td style={{ textAlign: 'right', fontWeight: mine ? 700 : 500 }}>
-                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
-                          {o.home_name}
+                        <span className="result-team">
+                          <span className="result-team-name">{o.home_name}</span>
                           {logoSrc(o.home_logo) && (
                             <img
                               src={logoSrc(o.home_logo) ?? ''}
@@ -1544,14 +1544,7 @@ export function App() {
                           )}
                         </span>
                       </td>
-                      <td
-                        style={{
-                          textAlign: 'center',
-                          fontWeight: 800,
-                          color: 'var(--accent-light)',
-                          whiteSpace: 'nowrap',
-                        }}
-                      >
+                      <td className="result-score">
                         {o.home_goals} - {o.away_goals}
                         {hasPens && (
                           <div style={{ fontSize: 10, color: 'var(--warn)', fontWeight: 600 }}>
@@ -1560,7 +1553,7 @@ export function App() {
                         )}
                       </td>
                       <td style={{ fontWeight: mine ? 700 : 500 }}>
-                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                        <span className="result-team">
                           {logoSrc(o.away_logo) && (
                             <img
                               src={logoSrc(o.away_logo) ?? ''}
@@ -1568,7 +1561,7 @@ export function App() {
                               style={{ width: 18, height: 18 }}
                             />
                           )}
-                          {o.away_name}
+                          <span className="result-team-name">{o.away_name}</span>
                         </span>
                       </td>
                     </tr>

@@ -32,21 +32,20 @@ export function LiveMatchPanel({
   const [pending, setPending] = useState<[number, number][]>([]);
 
   const userIsHome = snapshot.user_side === 'home';
-  const userGoals = userIsHome ? snapshot.home_goals : snapshot.away_goals;
-  const oppGoals = userIsHome ? snapshot.away_goals : snapshot.home_goals;
   const clock = Math.min(snapshot.minute, 90);
+  const finished = clock >= 90;
 
   useEffect(() => {
-    if (!playing || busy || clock >= 90) return;
+    if (!playing || busy || finished) return;
     const id = window.setInterval(() => {
       onAdvance(Math.min(clock + 1, 90));
     }, 700 / speed);
     return () => window.clearInterval(id);
-  }, [playing, busy, clock, speed, onAdvance]);
+  }, [playing, busy, clock, speed, finished, onAdvance]);
 
   useEffect(() => {
-    if (clock >= 90) setPlaying(false);
-  }, [clock]);
+    if (finished) setPlaying(false);
+  }, [finished]);
 
   const label = (ev: MatchEventDto) => {
     switch (normalize(ev.event_type)) {
@@ -82,132 +81,125 @@ export function LiveMatchPanel({
     }
   };
 
-  const highlights = snapshot.events
-    .filter((e) => label(e) !== '')
-    .slice(-10)
-    .reverse();
-  const sideLabel = (side: string) =>
-    normalize(side) === 'home' ? snapshot.home_name : snapshot.away_name;
+  const events = snapshot.events.filter((e) => label(e) !== '');
+  const status = finished
+    ? t.live.finished
+    : clock === 45
+      ? t.live.halfTime
+      : clock < 45
+        ? t.live.firstHalf
+        : t.live.secondHalf;
 
-  const crest = (raw: string | null, name: string) =>
-    logoSrc(raw) ? (
-      <img
-        src={logoSrc(raw) ?? ''}
-        alt={name}
-        style={{ width: 34, height: 34, borderRadius: 7, background: '#0b1424', objectFit: 'contain' }}
-      />
+  const teamOf = (side: string) =>
+    normalize(side) === 'home'
+      ? { name: snapshot.home_name, isUser: userIsHome }
+      : { name: snapshot.away_name, isUser: !userIsHome };
+
+  const teamBadge = (name: string, logo: string | null) =>
+    logoSrc(logo) ? (
+      <img className="match-crest" src={logoSrc(logo) ?? ''} alt={name} />
     ) : (
-      <div className="crest-pill" style={{ width: 34, height: 34, fontSize: 11 }}>
+      <div className="crest-pill" style={{ width: 38, height: 38, fontSize: 12 }}>
         {name.slice(0, 3).toUpperCase()}
       </div>
     );
 
   const addPending = () => {
-    if (!outId || !inId) return;
-    if (pending.length >= snapshot.subs_left) return;
+    if (!outId || !inId || pending.length >= snapshot.subs_left) return;
     setPending((cur) => [...cur, [outId, inId]]);
     setOutId(0);
     setInId(0);
   };
 
-  const applyAdjustments = () => {
-    onAdjust(pending, mentality);
-    setPending([]);
-  };
-
   const playerOption = (p: PlayerDto) => (
     <option key={p.player_id} value={p.player_id}>
-      {p.name} ({p.position_id} · OVR {p.power})
+      {p.name} · {p.position_id} · OVR {p.power}
     </option>
   );
 
   return (
     <div className="modal-backdrop">
-      <div className="modal-box" onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 12 }}>
-          <div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-              {t.live.title} · {t.match.minute} {clock}'
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
-              {crest(snapshot.home_logo, snapshot.home_name)}
-              <div style={{ fontSize: 20, fontWeight: 800 }} className="tabular">
+      <div className="modal-box match-panel">
+        <header className="match-panel-head">
+          <div className="match-panel-meta">
+            <span className="match-status-pill">{status}</span>
+            <span className="tabular match-clock">{clock}'</span>
+            {!finished && (
+              <span className="match-status-pill subtle">
+                {t.live.subsLeft}: {snapshot.subs_left}
+              </span>
+            )}
+            <span className="match-status-pill subtle">
+              {userIsHome ? t.live.homeSide : t.live.awaySide}
+            </span>
+          </div>
+
+          <div className="match-scoreboard">
+            <div className="match-side">
+              {teamBadge(snapshot.home_name, snapshot.home_logo)}
+              <div className={`match-team-name ${userIsHome ? 'mine' : ''}`}>
                 {snapshot.home_name}
               </div>
-              <div style={{ fontSize: 24, fontWeight: 900 }} className="tabular">
-                {snapshot.home_goals} - {snapshot.away_goals}
-              </div>
-              <div style={{ fontSize: 20, fontWeight: 800 }} className="tabular">
+            </div>
+            <div className="match-score tabular">
+              {snapshot.home_goals} <span>–</span> {snapshot.away_goals}
+            </div>
+            <div className="match-side away">
+              <div className={`match-team-name ${!userIsHome ? 'mine' : ''}`}>
                 {snapshot.away_name}
               </div>
-              {crest(snapshot.away_logo, snapshot.away_name)}
-            </div>
-            <div style={{ fontSize: 12, marginTop: 2, color: 'var(--accent-light)' }}>
-              {snapshot.minute < 45
-                ? t.live.firstHalf
-                : snapshot.minute < 90
-                  ? t.live.secondHalf
-                  : t.live.finished}
+              {teamBadge(snapshot.away_name, snapshot.away_logo)}
             </div>
           </div>
-          <div style={{ textAlign: 'right' }} className="tabular">
-            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>
-              {userGoals} - {oppGoals}
-            </div>
-            <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
-              {t.live.subsLeft}: {snapshot.subs_left}
-            </div>
-          </div>
-        </div>
+        </header>
 
-        <div style={{ display: 'flex', gap: 6, margin: '12px 0', flexWrap: 'wrap' }}>
-          <button
-            className="btn btn-primary"
-            disabled={busy || clock >= 90}
-            onClick={() => setPlaying((p) => !p)}
-          >
-            {playing ? `❙❙ ${t.match.pause}` : `▶ ${t.match.play}`}
-          </button>
-          {[1, 2, 4].map((s) => (
-            <button
-              key={s}
-              className={`btn ${speed === s ? 'btn-primary' : ''}`}
-              onClick={() => setSpeed(s)}
-            >
-              {s}x
-            </button>
-          ))}
-          <button className="btn" disabled={busy || clock >= 90} onClick={() => onAdvance(90)}>
-            ⏭ {t.match.skip}
-          </button>
-          {clock >= 90 && (
+        <div className="match-controls">
+          {!finished && (
+            <>
+              <button
+                className="btn btn-primary"
+                disabled={busy}
+                onClick={() => setPlaying((p) => !p)}
+              >
+                {playing ? `❙❙ ${t.match.pause}` : `▶ ${t.match.play}`}
+              </button>
+              <div className="seg">
+                {[1, 2, 4].map((s) => (
+                  <button
+                    key={s}
+                    className={`seg-item ${speed === s ? 'active' : ''}`}
+                    onClick={() => setSpeed(s)}
+                  >
+                    {s}x
+                  </button>
+                ))}
+              </div>
+              <button className="btn" disabled={busy} onClick={() => onAdvance(45)}>
+                {t.live.toHalf}
+              </button>
+              <button className="btn" disabled={busy} onClick={() => onAdvance(90)}>
+                ⏭ {t.match.skip}
+              </button>
+            </>
+          )}
+          {finished && (
             <button className="btn btn-primary" disabled={busy} onClick={onFinish}>
               ✓ {t.live.commit}
             </button>
           )}
-          {clock < 90 && (
-            <button className="btn" disabled={busy} onClick={onClose} style={{ marginLeft: 'auto' }}>
-              {t.dashboard.close}
-            </button>
-          )}
+          <button className="btn ghost" disabled={busy} onClick={onClose} style={{ marginLeft: 'auto' }}>
+            {finished ? t.dashboard.close : t.live.abandon}
+          </button>
         </div>
 
-        {clock < 90 && (
-          <div className="card" style={{ background: 'var(--surface-card-high)', marginBottom: 10 }}>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', alignItems: 'center' }}>
-              <select
-                className="select"
-                value={outId}
-                onChange={(e) => setOutId(Number(e.target.value))}
-              >
+        {!finished && (
+          <section className="match-adjust">
+            <div className="match-adjust-row">
+              <select className="select" value={outId} onChange={(e) => setOutId(Number(e.target.value))}>
                 <option value={0}>{t.live.out}</option>
                 {snapshot.on_pitch.map(playerOption)}
               </select>
-              <select
-                className="select"
-                value={inId}
-                onChange={(e) => setInId(Number(e.target.value))}
-              >
+              <select className="select" value={inId} onChange={(e) => setInId(Number(e.target.value))}>
                 <option value={0}>{t.live.in}</option>
                 {snapshot.bench.map(playerOption)}
               </select>
@@ -230,45 +222,52 @@ export function LiveMatchPanel({
               <button
                 className="btn btn-primary"
                 disabled={busy || (pending.length === 0 && mentality === 'balanced')}
-                onClick={applyAdjustments}
+                onClick={() => {
+                  onAdjust(pending, mentality);
+                  setPending([]);
+                }}
               >
                 {t.live.apply}
               </button>
             </div>
             {pending.length > 0 && (
-              <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 6 }}>
+              <div className="match-adjust-pending">
                 {pending
                   .map(([out, into]) => {
                     const outName = snapshot.on_pitch.find((p) => p.player_id === out)?.name ?? out;
                     const inName = snapshot.bench.find((p) => p.player_id === into)?.name ?? into;
                     return `${outName} → ${inName}`;
                   })
-                  .join(', ')}
+                  .join(' · ')}
               </div>
             )}
-          </div>
+          </section>
         )}
 
-        <div style={{ maxHeight: 220, overflowY: 'auto' }}>
-          {highlights.length === 0 && (
-            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.match.noEvents}</div>
+        <section className="match-feed">
+          {events.length === 0 ? (
+            <div className="match-feed-empty">{t.match.noEvents}</div>
+          ) : (
+            events
+              .slice()
+              .reverse()
+              .map((ev, idx) => {
+                const team = teamOf(ev.side);
+                return (
+                  <div
+                    key={`${ev.minute}-${ev.event_type}-${idx}`}
+                    className={`event-row ${team.isUser ? 'mine' : ''}`}
+                  >
+                    <span className="event-minute tabular">{ev.minute}'</span>
+                    <span className="event-label">{label(ev)}</span>
+                    <span className="event-player">{ev.player_name ?? '—'}</span>
+                    {ev.detail && <span className="event-detail">{ev.detail}</span>}
+                    <span className="event-team">{team.name}</span>
+                  </div>
+                );
+              })
           )}
-          {highlights.map((ev, idx) => (
-            <div key={`${ev.minute}-${idx}`} className="news-item" style={{ display: 'flex', gap: 8 }}>
-              <span className="tabular" style={{ width: 34, color: 'var(--text-dim)' }}>
-                {ev.minute}'
-              </span>
-              <span style={{ fontWeight: 700, fontSize: 12.5 }}>{label(ev)}</span>
-              <span style={{ fontSize: 12.5 }}>{ev.player_name ?? ''}</span>
-              {ev.detail && (
-                <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>({ev.detail})</span>
-              )}
-              <span style={{ fontSize: 11.5, color: 'var(--text-dim)', marginLeft: 'auto' }}>
-                {sideLabel(ev.side)}
-              </span>
-            </div>
-          ))}
-        </div>
+        </section>
       </div>
     </div>
   );

@@ -244,7 +244,12 @@
     "balanced": "Seimbang",
     "attacking": "Menyerang",
     "commit": "Simpan & Lanjut",
-    "shootout": "Adu Penalti"
+    "shootout": "Adu Penalti",
+    "halfTime": "Istirahat",
+    "toHalf": "Ke 45'",
+    "abandon": "Tutup",
+    "homeSide": "Kandang",
+    "awaySide": "Tandang"
   },
   "competition": {
     "standings": "Klasemen",
