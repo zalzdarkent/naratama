@@ -8,19 +8,20 @@ use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::session::SessionManager;
 use naratama_db::SeasonRepo;
 use naratama_engine::{
-    BoardAmbition, ClubLifeNews, CustomClubRequest, CustomClubService, DashboardSnapshot,
-    DesktopFacade, FinanceService, GenerateCareerRequest, InboxMessageRow, InboxService,
-    InitialSquadPreset, MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine,
-    NewsItemRow, OfferResponseAction, OffseasonService, PreseasonCamp, SeasonGenerator,
-    MatchReplay, PreparedFixture, SquadTacticsService, StadiumArchitecture,
-    TrainingFocus, TransferMarketService,
+    BoardAmbition, ClubLifeNews, CompetitionOverview, CustomClubRequest, CustomClubService,
+    DashboardSnapshot, DesktopFacade, FinanceService, GenerateCareerRequest, HonourRow,
+    InboxMessageRow, InboxService, InitialSquadPreset, MatchReplay, MatchStatistics,
+    MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine, NewsItemRow,
+    OfferResponseAction, OffseasonService, PlayerDetail, PreseasonCamp, PreparedFixture,
+    ReadService, SeasonAwardRow, SeasonGenerator, SquadTacticsService, StadiumArchitecture,
+    TeamDetail, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
     ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchId, MatchStatus, Money,
     PlayableCountrySummary, Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Team,
     TeamId, TournamentId,
 };
-use naratama_sim::{LiveMatch, MatchEvent, MatchMentality, MatchResult, MatchSide};
+use naratama_sim::{LiveMatch, MatchEvent, MatchMentality, MatchResult, MatchSide, TacticalDossier};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rusqlite::{params, Connection, OptionalExtension};
@@ -895,6 +896,165 @@ fn get_match_replay(state: State<'_, AppState>) -> Result<Option<MatchReplay>, S
         .map_err(|e| e.to_string())
 }
 
+
+#[tauri::command]
+fn list_season_tournaments(state: State<'_, AppState>) -> Result<Vec<(i64, String, i32)>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::season_tournaments(&active.conn, active.season_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_competition_overview(
+    state: State<'_, AppState>,
+    tournament_id: i64,
+) -> Result<CompetitionOverview, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::competition_overview(
+        &active.conn,
+        active.season_id,
+        TournamentId(tournament_id),
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_match_statistics(
+    state: State<'_, AppState>,
+    match_id: i64,
+) -> Result<Option<MatchStatistics>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::match_statistics(&active.conn, MatchId(match_id)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_seasons(state: State<'_, AppState>) -> Result<Vec<Season>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::seasons(&active.conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_season_honours(
+    state: State<'_, AppState>,
+    season_id: Option<i64>,
+) -> Result<Vec<HonourRow>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let season = season_id.map_or(active.season_id, SeasonId);
+    ReadService::season_honours(&active.conn, season).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_season_awards(
+    state: State<'_, AppState>,
+    season_id: Option<i64>,
+) -> Result<Vec<SeasonAwardRow>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let season = season_id.map_or(active.season_id, SeasonId);
+    ReadService::season_awards(&active.conn, season).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_team_detail(
+    state: State<'_, AppState>,
+    team_id: i64,
+) -> Result<Option<TeamDetail>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::team_detail(&active.conn, TeamId(team_id)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_player_detail(
+    state: State<'_, AppState>,
+    player_id: i64,
+) -> Result<Option<PlayerDetail>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::player_detail(&active.conn, PlayerId(player_id)).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_tactical_dossier(
+    state: State<'_, AppState>,
+    team_id: i64,
+) -> Result<Option<(String, TacticalDossier)>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let stars = ClubRepo::staff_for_team(&active.conn, active.user_team_id)
+        .map(|staff| {
+            staff
+                .iter()
+                .find(|s| s.role == StaffRole::TacticalAnalyst)
+                .map_or(0, |s| s.stars)
+        })
+        .unwrap_or(0);
+    ReadService::tactical_dossier(&active.conn, TeamId(team_id), stars)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_international_podiums(state: State<'_, AppState>) -> Result<Vec<HonourRow>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::international_podiums(&active.conn, active.season_id)
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
@@ -1358,6 +1518,16 @@ pub fn run() {
             live_match_adjust,
             finish_live_match,
             get_match_replay,
+            list_season_tournaments,
+            get_competition_overview,
+            get_match_statistics,
+            get_seasons,
+            get_season_honours,
+            get_season_awards,
+            get_team_detail,
+            get_player_detail,
+            get_tactical_dossier,
+            get_international_podiums,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

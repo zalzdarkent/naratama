@@ -1,7 +1,9 @@
 use std::path::PathBuf;
 
 use chrono::NaiveDate;
-use naratama_db::club_repo::{ClubRepo, MatchPersistPayload, MatchPlayerInsert, RedCardBanInput};
+use naratama_db::club_repo::{
+    ClubRepo, MatchPersistPayload, MatchPlayerInsert, MatchTeamStats, RedCardBanInput,
+};
 use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::season_repo::NewFixtureRow;
 use naratama_db::session::SessionManager;
@@ -105,6 +107,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 2,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -171,6 +174,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 1,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -213,6 +217,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 2,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -256,6 +261,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 1,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -289,6 +295,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
             incidents_json: Vec::new(),
             red_card_bans: Vec::new(),
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -363,6 +370,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 1,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();
@@ -412,6 +420,7 @@ fn twelve_competition_scoped_suspension_scenarios() {
                 matches_banned: 2,
             }],
             injury_return_dates: Vec::new(),
+            team_stats: MatchTeamStats::default(),
         },
     )
     .unwrap();

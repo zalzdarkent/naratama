@@ -178,6 +178,184 @@ export interface MatchReplayDto {
   events: MatchEventDto[];
 }
 
+
+export interface FixtureRowDto {
+  match_id: number;
+  date: string | null;
+  phase: number;
+  round: number;
+  leg: number;
+  group_id: number | null;
+  status: number;
+  home_team_id: number;
+  away_team_id: number;
+  home_name: string;
+  away_name: string;
+  home_goals: number | null;
+  away_goals: number | null;
+  penalty_home_goals: number | null;
+  penalty_away_goals: number | null;
+  winner_id: number | null;
+}
+
+export interface BracketRoundDto {
+  phase: number;
+  name: string;
+  fixtures: FixtureRowDto[];
+}
+
+export interface GroupTableDto {
+  group_id: number;
+  rows: StandingRowDto[];
+}
+
+export interface LeaderRowDto {
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  team_name: string;
+  value: number;
+}
+
+export interface CompetitionOverviewDto {
+  tournament_id: number;
+  name: string;
+  organization: number;
+  standings: StandingRowDto[];
+  groups: GroupTableDto[];
+  fixtures: FixtureRowDto[];
+  bracket: BracketRoundDto[];
+  top_scorers: LeaderRowDto[];
+  top_assists: LeaderRowDto[];
+  top_rated: LeaderRowDto[];
+}
+
+export interface MatchPlayerStatDto {
+  player_id: number;
+  player_name: string;
+  team_id: number;
+  position_id: number;
+  starter: boolean;
+  minutes: number;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  mvp: boolean;
+  rating: number;
+}
+
+export interface MatchStatisticsDto {
+  match_id: number;
+  date: string | null;
+  tournament_name: string;
+  home_team_id: number;
+  away_team_id: number;
+  home_name: string;
+  away_name: string;
+  home_goals: number;
+  away_goals: number;
+  penalty_home_goals: number | null;
+  penalty_away_goals: number | null;
+  home_shots: number;
+  away_shots: number;
+  home_shots_on_target: number;
+  away_shots_on_target: number;
+  home_saves: number;
+  away_saves: number;
+  home_possession: number;
+  attendance: number;
+  revenue: number;
+  players: MatchPlayerStatDto[];
+}
+
+export interface HonourRowDto {
+  tournament_id: number;
+  tournament_name: string;
+  is_international: boolean;
+  is_national_team: boolean;
+  winner_name: string;
+  winner_id: number | null;
+  runner_up_name: string | null;
+  runner_up_id: number | null;
+  third_place_name: string | null;
+  score_line: string | null;
+  notes: string | null;
+  edition_season_id: number;
+}
+
+export interface SeasonAwardRowDto {
+  award_type: number;
+  player_id: number | null;
+  player_name: string | null;
+  team_id: number | null;
+  team_name: string | null;
+  year: number;
+  goals: number | null;
+  rating: number | null;
+  subtitle: string | null;
+}
+
+export interface TeamDetailDto {
+  team: TeamDto;
+  stadium: {
+    stadium_id: number;
+    name: string;
+    capacity_general: number;
+    capacity_stand: number;
+    capacity_terrace: number;
+    capacity_boxes: number;
+  } | null;
+  league_name: string;
+  squad_size: number;
+  average_power: number;
+  squad_value: number;
+  top_players: PlayerDto[];
+  recent_results: FixtureRowDto[];
+  next_fixtures: FixtureRowDto[];
+}
+
+export interface ContractDto {
+  end_date: string | null;
+  salary: number;
+  goal_bonus: number | null;
+  assist_bonus: number | null;
+  mvp_bonus: number | null;
+}
+
+export interface SeasonStatDto {
+  season_id: number;
+  matches_played: number;
+  starts: number;
+  minutes: number;
+  rating: number;
+  goals: number;
+  assists: number;
+  yellow_cards: number;
+  red_cards: number;
+  mvps: number;
+}
+
+export interface PlayerDetailDto {
+  player: PlayerDto;
+  club_name: string | null;
+  contract: ContractDto | null;
+  season_stats: SeasonStatDto[];
+  recent_ratings: [string, number, boolean][];
+  national_caps: number;
+}
+
+export interface DossierDto {
+  formation: string;
+  tactical_style: string;
+  predicted_mentality: string;
+  danger_men: { player_id: number; name: string; position_id: number; power: number }[];
+  vulnerabilities: Record<string, unknown>[];
+  counter_tactics: string[];
+  match_outlook: string;
+  confidence_rating: number;
+}
+
 export interface ClubFacilitiesDto {
   team_id: number;
   training_level: number;
@@ -487,6 +665,44 @@ export const desktopApi = {
   },
   async finishLiveMatch(): Promise<MatchdayOutcomeDto[]> {
     return (await tauriInvoke<MatchdayOutcomeDto[]>('finish_live_match')) ?? [];
+  },
+  async listSeasonTournaments(): Promise<[number, string, number][]> {
+    return (await tauriInvoke<[number, string, number][]>('list_season_tournaments')) ?? [];
+  },
+  async getCompetitionOverview(tournamentId: number): Promise<CompetitionOverviewDto | null> {
+    return (
+      (await tauriInvoke<CompetitionOverviewDto | null>('get_competition_overview', {
+        tournamentId,
+      })) ?? null
+    );
+  },
+  async getMatchStatistics(matchId: number): Promise<MatchStatisticsDto | null> {
+    return (
+      (await tauriInvoke<MatchStatisticsDto | null>('get_match_statistics', { matchId })) ?? null
+    );
+  },
+  async getSeasons(): Promise<{ season_id: number; name: string; start_year: number; end_year: number }[]> {
+    return (await tauriInvoke<{ season_id: number; name: string; start_year: number; end_year: number }[]>('get_seasons')) ?? [];
+  },
+  async getSeasonHonours(seasonId?: number): Promise<HonourRowDto[]> {
+    return (await tauriInvoke<HonourRowDto[]>('get_season_honours', { seasonId })) ?? [];
+  },
+  async getSeasonAwards(seasonId?: number): Promise<SeasonAwardRowDto[]> {
+    return (await tauriInvoke<SeasonAwardRowDto[]>('get_season_awards', { seasonId })) ?? [];
+  },
+  async getTeamDetail(teamId: number): Promise<TeamDetailDto | null> {
+    return (await tauriInvoke<TeamDetailDto | null>('get_team_detail', { teamId })) ?? null;
+  },
+  async getPlayerDetail(playerId: number): Promise<PlayerDetailDto | null> {
+    return (await tauriInvoke<PlayerDetailDto | null>('get_player_detail', { playerId })) ?? null;
+  },
+  async getTacticalDossier(teamId: number): Promise<[string, DossierDto] | null> {
+    return (
+      (await tauriInvoke<[string, DossierDto] | null>('get_tactical_dossier', { teamId })) ?? null
+    );
+  },
+  async getInternationalPodiums(): Promise<HonourRowDto[]> {
+    return (await tauriInvoke<HonourRowDto[]>('get_international_podiums')) ?? [];
   },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;

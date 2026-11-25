@@ -52,6 +52,19 @@ pub struct MatchPersistPayload {
     pub incidents_json: Vec<String>,
     pub red_card_bans: Vec<RedCardBanInput>,
     pub injury_return_dates: Vec<(PlayerId, NaiveDate)>,
+    pub team_stats: MatchTeamStats,
+}
+
+/// Persisted team-level match statistics.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MatchTeamStats {
+    pub home_shots: i32,
+    pub away_shots: i32,
+    pub home_shots_on_target: i32,
+    pub away_shots_on_target: i32,
+    pub home_saves: i32,
+    pub away_saves: i32,
+    pub home_possession: i32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -499,6 +512,7 @@ impl ClubRepo {
     }
 
     /// Saves a completed match, player stats, incidents, ticks prior bans, applies new red cards and injuries atomically.
+    #[allow(clippy::too_many_lines)]
     pub fn save_match_result(
         conn: &mut Connection,
         payload: &MatchPersistPayload,
@@ -514,7 +528,14 @@ impl ClubRepo {
                 penalty_away_goals = ?5,
                 attendance_general = ?6,
                 revenue = ?7,
-                status = ?8
+                status = ?8,
+                home_shots = ?10,
+                away_shots = ?11,
+                home_shots_on_target = ?12,
+                away_shots_on_target = ?13,
+                home_saves = ?14,
+                away_saves = ?15,
+                home_possession = ?16
              WHERE match_id = ?9",
             params![
                 payload.home_goals,
@@ -526,6 +547,13 @@ impl ClubRepo {
                 payload.ticket_revenue,
                 MatchStatus::Finished as i64,
                 payload.match_id.0,
+                payload.team_stats.home_shots,
+                payload.team_stats.away_shots,
+                payload.team_stats.home_shots_on_target,
+                payload.team_stats.away_shots_on_target,
+                payload.team_stats.home_saves,
+                payload.team_stats.away_saves,
+                payload.team_stats.home_possession,
             ],
         )
         .map_err(db_err)?;

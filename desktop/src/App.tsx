@@ -7,7 +7,10 @@ import {
   formatMoney,
   InboxMessageDto,
   isTauriRuntime,
+  DossierDto,
   LiveMatchSnapshotDto,
+  MatchStatisticsDto,
+  PlayerDetailDto,
   MarketListingDto,
   MatchdayOutcomeDto,
   MatchReplayDto,
@@ -15,7 +18,12 @@ import {
   PlayerDto,
   positionMeta,
 } from './api/bridge';
+import { CompetitionPanel } from './components/CompetitionPanel';
+import { DossierModal } from './components/DossierModal';
+import { HistoryPanel } from './components/HistoryPanel';
 import { LiveMatchPanel } from './components/LiveMatchPanel';
+import { MatchStatsModal } from './components/MatchStatsModal';
+import { TeamDetailModal } from './components/TeamDetailModal';
 import { MatchReplay } from './components/MatchReplay';
 import { OffseasonModal } from './components/OffseasonModal';
 import { StartScreen } from './components/StartScreen';
@@ -29,6 +37,7 @@ type RouteKey =
   | 'market'
   | 'clubHub'
   | 'inbox'
+  | 'history'
   | 'news';
 
 const FORMATIONS: Record<string, [number, number][]> = {
@@ -93,6 +102,23 @@ export function App() {
   const [matchOutcomes, setMatchOutcomes] = useState<MatchdayOutcomeDto[] | null>(null);
   const [replay, setReplay] = useState<MatchReplayDto | null>(null);
   const [live, setLive] = useState<LiveMatchSnapshotDto | null>(null);
+  const [stats, setStats] = useState<MatchStatisticsDto | null>(null);
+  const [teamId, setTeamId] = useState<number | null>(null);
+  const [dossier, setDossier] = useState<{ name: string; data: DossierDto } | null>(null);
+  const [playerDetail, setPlayerDetail] = useState<PlayerDetailDto | null>(null);
+
+  const openMatch = (matchId: number) => {
+    void desktopApi
+      .getMatchStatistics(matchId)
+      .then((data) => data && setStats(data))
+      .catch((e) => notify(String(e)));
+  };
+  const openDossier = (id: number) => {
+    void desktopApi
+      .getTacticalDossier(id)
+      .then((res) => res && setDossier({ name: res[0], data: res[1] }))
+      .catch((e) => notify(String(e)));
+  };
   const [showOffseason, setShowOffseason] = useState(false);
   const [staffRole, setStaffRole] = useState('head_physio');
   const [staffName, setStaffName] = useState('Coach Pratama');
@@ -138,6 +164,20 @@ export function App() {
       void refresh();
     }
   }, [inCareer]);
+
+  useEffect(() => {
+    if (!selectedPlayer) {
+      setPlayerDetail(null);
+      return;
+    }
+    let active = true;
+    void desktopApi.getPlayerDetail(selectedPlayer.player_id).then((detail) => {
+      if (active) setPlayerDetail(detail);
+    });
+    return () => {
+      active = false;
+    };
+  }, [selectedPlayer?.player_id]);
 
   useEffect(() => {
     if (!inCareer || route !== 'market') return;
@@ -243,6 +283,7 @@ export function App() {
       'market',
       'clubHub',
       'inbox',
+      'history',
       'news',
     ];
     const onKey = (ev: KeyboardEvent) => {
@@ -468,6 +509,7 @@ export function App() {
             ['market', t.nav.market],
             ['clubHub', t.nav.clubHub],
             ['inbox', t.nav.inbox],
+            ['history', t.nav.history],
             ['news', t.nav.news],
           ] as [RouteKey, string][]
         ).map(([key, label], idx) => (
@@ -525,7 +567,12 @@ export function App() {
                         className={row.team_id === snapshot.club.team_id ? 'user-row' : ''}
                       >
                         <td>{idx + 1}</td>
-                        <td style={{ fontWeight: 600 }}>{row.team_name}</td>
+                        <td
+                          style={{ fontWeight: 600, cursor: 'pointer' }}
+                          onClick={() => setTeamId(row.team_id)}
+                        >
+                          {row.team_name}
+                        </td>
                         <td>{row.played}</td>
                         <td>{row.goals_for - row.goals_against}</td>
                         <td style={{ fontWeight: 800, color: 'var(--accent-light)' }}>{row.points}</td>
@@ -575,6 +622,11 @@ export function App() {
                   <button className="btn btn-primary" onClick={() => void handleSaveTactics()}>
                     {t.squad.saveTactics}
                   </button>
+                  {nextOppId && (
+                    <button className="btn" onClick={() => openDossier(nextOppId)}>
+                      {t.dossier.short}
+                    </button>
+                  )}
                 </div>
               </div>
               <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginBottom: 10 }}>
@@ -670,44 +722,16 @@ export function App() {
         )}
 
         {route === 'competitions' && (
-          <section className="card">
-            <h3 className="card-title">{t.dashboard.leagueStandings}</h3>
-            <table className="data-table tabular">
-              <thead>
-                <tr>
-                  <th>#</th>
-                  <th>{t.common.club}</th>
-                  <th>{t.common.played}</th>
-                  <th>{t.common.won}</th>
-                  <th>{t.common.drawn}</th>
-                  <th>{t.common.lost}</th>
-                  <th>{t.common.gf}</th>
-                  <th>{t.common.ga}</th>
-                  <th>{t.common.gd}</th>
-                  <th>{t.common.points}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {snapshot.standings_preview.map((row, idx) => (
-                  <tr
-                    key={row.team_id}
-                    className={row.team_id === snapshot.club.team_id ? 'user-row' : ''}
-                  >
-                    <td>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{row.team_name}</td>
-                    <td>{row.played}</td>
-                    <td>{row.wins}</td>
-                    <td>{row.draws}</td>
-                    <td>{row.losses}</td>
-                    <td>{row.goals_for}</td>
-                    <td>{row.goals_against}</td>
-                    <td>{row.goals_for - row.goals_against}</td>
-                    <td style={{ fontWeight: 800, color: 'var(--accent-light)' }}>{row.points}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+          <CompetitionPanel
+            locale={locale}
+            userTeamId={snapshot.club.team_id}
+            onOpenMatch={openMatch}
+            onOpenTeam={(id) => setTeamId(id)}
+          />
+        )}
+
+        {route === 'history' && (
+          <HistoryPanel locale={locale} currentSeasonId={snapshot.season.season_id} />
         )}
 
         {route === 'international' && (
@@ -1009,7 +1033,46 @@ export function App() {
               <div>
                 {t.inspector.salary}: <strong>{formatMoney(selectedPlayer.salary)}</strong>
               </div>
+              {playerDetail?.contract && (
+                <div>
+                  {t.inspector.contract}:{' '}
+                  <strong>{playerDetail.contract.end_date ?? '—'}</strong>
+                </div>
+              )}
+              {playerDetail && (
+                <div>
+                  {t.inspector.caps}: <strong>{playerDetail.national_caps}</strong>
+                </div>
+              )}
             </div>
+            {playerDetail && playerDetail.season_stats.length > 0 && (
+              <div style={{ marginTop: 10, fontSize: 12 }} className="tabular">
+                <div style={{ color: 'var(--text-dim)', marginBottom: 3 }}>{t.inspector.seasonStats}</div>
+                {playerDetail.season_stats.slice(0, 3).map((row) => (
+                  <div key={row.season_id} style={{ display: 'flex', gap: 6, fontSize: 11.5 }}>
+                    <span style={{ width: 26, color: 'var(--text-dim)' }}>S{row.season_id}</span>
+                    <span>{row.matches_played} {t.stats.matches}</span>
+                    <span>{row.goals} ⚽</span>
+                    <span>{row.assists} 🅰</span>
+                    <span style={{ marginLeft: 'auto' }}>
+                      {(row.rating / 10).toFixed(1)}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {playerDetail && playerDetail.recent_ratings.length > 0 && (
+              <div style={{ marginTop: 8, fontSize: 11.5 }} className="tabular">
+                <div style={{ color: 'var(--text-dim)', marginBottom: 3 }}>{t.inspector.recentRatings}</div>
+                {playerDetail.recent_ratings.map(([date, rating, mvp], idx) => (
+                  <div key={`${date}-${idx}`} style={{ display: 'flex', gap: 6 }}>
+                    <span style={{ color: 'var(--text-dim)' }}>{date}</span>
+                    <span>{(rating / 10).toFixed(1)}</span>
+                    {mvp && <span>★</span>}
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         ) : (
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.inspector.selectHint}</div>
@@ -1034,7 +1097,12 @@ export function App() {
                     o.home_team_id === snapshot.club.team_id ||
                     o.away_team_id === snapshot.club.team_id;
                   return (
-                    <tr key={o.match_id} className={isUser ? 'user-row' : ''}>
+                    <tr
+                      key={o.match_id}
+                      className={isUser ? 'user-row' : ''}
+                      style={{ cursor: 'pointer' }}
+                      onClick={() => openMatch(o.match_id)}
+                    >
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
                         {teamNameMap.get(o.home_team_id) ?? `${t.common.clubFallback} #${o.home_team_id}`}
                       </td>
@@ -1051,6 +1119,45 @@ export function App() {
             </table>
           </div>
         </div>
+      )}
+
+      {stats && (
+        <MatchStatsModal
+          locale={locale}
+          stats={stats}
+          userTeamId={snapshot.club.team_id}
+          onClose={() => setStats(null)}
+          onOpenTeam={(id) => {
+            setStats(null);
+            setTeamId(id);
+          }}
+        />
+      )}
+
+      {teamId !== null && (
+        <TeamDetailModal
+          locale={locale}
+          teamId={teamId}
+          userTeamId={snapshot.club.team_id}
+          onClose={() => setTeamId(null)}
+          onOpenPlayer={(id) => {
+            const found = squad.find((p) => p.player_id === id);
+            if (found) setSelectedPlayer(found);
+          }}
+          onOpenDossier={(id) => {
+            setTeamId(null);
+            openDossier(id);
+          }}
+        />
+      )}
+
+      {dossier && (
+        <DossierModal
+          locale={locale}
+          teamName={dossier.name}
+          dossier={dossier.data}
+          onClose={() => setDossier(null)}
+        />
       )}
 
       {live && (

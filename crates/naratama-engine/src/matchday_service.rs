@@ -396,6 +396,15 @@ impl MatchdayService {
                     incidents_json,
                     red_card_bans,
                     injury_return_dates,
+                    team_stats: naratama_db::club_repo::MatchTeamStats {
+                        home_shots: sim.home_shots,
+                        away_shots: sim.away_shots,
+                        home_shots_on_target: sim.home_shots_on_target,
+                        away_shots_on_target: sim.away_shots_on_target,
+                        home_saves: sim.home_saves,
+                        away_saves: sim.away_saves,
+                        home_possession: sim.home_possession,
+                    },
                 },
             )?;
 

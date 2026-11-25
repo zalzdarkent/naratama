@@ -413,6 +413,18 @@ pub fn ensure_schema(conn: &Connection) -> NaratamaResult<()> {
     ensure_column(conn, "matches", "original_date", "TEXT")?;
     ensure_column(conn, "matches", "reschedule_reason", "TEXT")?;
     ensure_column(conn, "matches", "kickoff_time", "TEXT")?;
+    // Team match statistics (persisted so the desktop match-stats sheet can show them).
+    for column in [
+        "home_shots",
+        "away_shots",
+        "home_shots_on_target",
+        "away_shots_on_target",
+        "home_saves",
+        "away_saves",
+        "home_possession",
+    ] {
+        ensure_column(conn, "matches", column, "INTEGER NOT NULL DEFAULT 0")?;
+    }
 
     ensure_column(conn, "teams", "logo_base64", "TEXT")?;
     ensure_column(conn, "tournaments", "logo_base64", "TEXT")?;

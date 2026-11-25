@@ -54,7 +54,8 @@
     "market": "Bursa Transfer",
     "clubHub": "Pusat Klub",
     "inbox": "Kotak Masuk",
-    "news": "Berita Dunia"
+    "news": "Berita Dunia",
+    "history": "Riwayat & Juara"
   },
   "topbar": {
     "cash": "Kas Klub",
@@ -131,7 +132,10 @@
     "selectHint": "Pilih pemain atau klub dari tabel untuk melihat profil detail di sini.",
     "salary": "Gaji / Minggu",
     "contract": "Kontrak & Status",
-    "clubPower": "Kekuatan Tim"
+    "clubPower": "Kekuatan Tim",
+    "caps": "Caps Timnas",
+    "seasonStats": "Statistik Musim",
+    "recentRatings": "Rating Terakhir"
   },
   "news": {
     "all": "Semua",
@@ -178,5 +182,72 @@
     "balanced": "Seimbang",
     "attacking": "Menyerang",
     "commit": "Simpan & Lanjut"
+  },
+  "competition": {
+    "standings": "Klasemen",
+    "fixtures": "Jadwal",
+    "bracket": "Bagan",
+    "stats": "Statistik",
+    "date": "Tanggal",
+    "home": "Kandang",
+    "away": "Tandang",
+    "score": "Skor",
+    "group": "Grup",
+    "international": "Internasional",
+    "noTable": "Belum ada klasemen.",
+    "noBracket": "Tidak ada bagan gugur.",
+    "topScorers": "Top Skor",
+    "topAssists": "Top Assist",
+    "topRated": "Rating Tertinggi",
+    "noData": "Belum ada data."
+  },
+  "stats": {
+    "fullTime": "STATISTIK PELANGI WAKTU",
+    "possession": "Penguasaan Bola",
+    "shots": "Tembakan",
+    "shotsOnTarget": "Tembakan Tepat Sasaran",
+    "accuracy": "Akurasi Tembakan",
+    "saves": "Penyelamatan",
+    "yellowCards": "Kartu Kuning",
+    "redCards": "Kartu Merah",
+    "attendance": "Penonton",
+    "revenue": "Pendapatan",
+    "minutes": "Menit",
+    "goals": "Gol",
+    "assists": "Assist",
+    "cards": "Kartu",
+    "rating": "Rating",
+    "matches": "laga"
+  },
+  "history": {
+    "honours": "Daftar Juara",
+    "awards": "Penghargaan Pemain",
+    "domestic": "KOMPETISI DOMESTIK KLUB",
+    "intlClubs": "KOMPETISI INTERNASIONAL KLUB",
+    "nationalTeams": "TURNAMEN TIM NASIONAL",
+    "noHonours": "Belum ada juara yang tuntas musim ini.",
+    "noAwards": "Belum ada penghargaan tercatat."
+  },
+  "team": {
+    "division": "Divisi",
+    "overall": "OVR",
+    "budget": "Anggaran",
+    "squadValue": "Nilai Skuad",
+    "squad": "Jumlah Pemain",
+    "avgPower": "Rata-rata OVR",
+    "dossier": "Analisis Taktik Lawan",
+    "keyPlayers": "Pemain Kunci",
+    "recent": "Hasil Terakhir",
+    "next": "Laga Berikutnya",
+    "noMatches": "Belum ada laga."
+  },
+  "dossier": {
+    "title": "DOSSIER ANALISIS TAKTIK",
+    "outlook": "Prediksi",
+    "confidence": "Keyakinan",
+    "dangerMen": "Pemain Berbahaya",
+    "vulnerabilities": "Kelemahan Lawan",
+    "counterTactics": "Saran Taktik",
+    "short": "Analisis Lawan"
   }
 }

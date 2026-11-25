@@ -54,7 +54,8 @@
     "market": "Transfer Market",
     "clubHub": "Club Hub",
     "inbox": "Inbox",
-    "news": "World News"
+    "news": "World News",
+    "history": "History & Honours"
   },
   "topbar": {
     "cash": "Club Cash",
@@ -131,7 +132,10 @@
     "selectHint": "Click any player or club row to inspect attributes and contract here.",
     "salary": "Weekly Wage",
     "contract": "Contract & Status",
-    "clubPower": "Squad Power"
+    "clubPower": "Squad Power",
+    "caps": "National Caps",
+    "seasonStats": "Season Stats",
+    "recentRatings": "Recent Ratings"
   },
   "news": {
     "all": "All",
@@ -178,5 +182,72 @@
     "balanced": "Balanced",
     "attacking": "Attacking",
     "commit": "Commit & Continue"
+  },
+  "competition": {
+    "standings": "Standings",
+    "fixtures": "Fixtures",
+    "bracket": "Bracket",
+    "stats": "Statistics",
+    "date": "Date",
+    "home": "Home",
+    "away": "Away",
+    "score": "Score",
+    "group": "Group",
+    "international": "International",
+    "noTable": "No standings yet.",
+    "noBracket": "No knockout bracket.",
+    "topScorers": "Top Scorers",
+    "topAssists": "Top Assists",
+    "topRated": "Top Rated",
+    "noData": "No data yet."
+  },
+  "stats": {
+    "fullTime": "FULL-TIME STATISTICS",
+    "possession": "Possession",
+    "shots": "Shots",
+    "shotsOnTarget": "Shots on target",
+    "accuracy": "Shot accuracy",
+    "saves": "Saves",
+    "yellowCards": "Yellow cards",
+    "redCards": "Red cards",
+    "attendance": "Attendance",
+    "revenue": "Revenue",
+    "minutes": "Min",
+    "goals": "Goals",
+    "assists": "Assists",
+    "cards": "Cards",
+    "rating": "Rating",
+    "matches": "apps"
+  },
+  "history": {
+    "honours": "Roll of Honour",
+    "awards": "Player Awards",
+    "domestic": "DOMESTIC CLUB COMPETITIONS",
+    "intlClubs": "INTERNATIONAL CLUB COMPETITIONS",
+    "nationalTeams": "NATIONAL TEAM TOURNAMENTS",
+    "noHonours": "No completed honours this season yet.",
+    "noAwards": "No awards recorded yet."
+  },
+  "team": {
+    "division": "Division",
+    "overall": "OVR",
+    "budget": "Budget",
+    "squadValue": "Squad Value",
+    "squad": "Squad Size",
+    "avgPower": "Average OVR",
+    "dossier": "Opponent Tactical Analysis",
+    "keyPlayers": "Key Players",
+    "recent": "Recent Results",
+    "next": "Next Fixtures",
+    "noMatches": "No matches yet."
+  },
+  "dossier": {
+    "title": "TACTICAL DOSSIER",
+    "outlook": "Outlook",
+    "confidence": "Confidence",
+    "dangerMen": "Danger Men",
+    "vulnerabilities": "Vulnerabilities",
+    "counterTactics": "Counter Tactics",
+    "short": "Opponent Analysis"
   }
 }
