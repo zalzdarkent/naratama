@@ -309,6 +309,8 @@ export interface NationalLeaderDto {
   player_name: string;
   country_name: string;
   caps: number;
+  goals: number;
+  assists: number;
   power: number;
 }
 

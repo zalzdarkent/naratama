@@ -157,9 +157,11 @@ fn wave13_crest_generation_reads_and_squad_statistics() {
     // 4. Logo map + national leaders.
     let logos = ReadService::logo_map(&conn, &[user_team.team_id.0, 999_999_999]).unwrap();
     assert_eq!(logos.len(), 1, "only clubs with a crest are returned");
-    let leaders = ReadService::national_leaders(&conn, 10).unwrap();
+    let leaders = ReadService::national_leaders(&conn, plan.season.season_id, 10).unwrap();
     assert!(leaders.len() <= 10);
-    assert!(leaders.iter().all(|l| l.caps >= 0));
+    assert!(leaders
+        .iter()
+        .all(|l| l.caps >= 0 && l.goals >= 0 && l.assists >= 0));
 
     // 5. Scheduled transfers list stays queryable (empty before any agreed deal).
     assert!(ReadService::scheduled_transfers(&conn, user_team.team_id)

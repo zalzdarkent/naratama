@@ -83,21 +83,44 @@ export function InternationalPanel({ locale, notify }: InternationalPanelProps) 
         )}
         {leaders.length > 0 && (
           <>
-            <h4 style={{ fontSize: 12.5, margin: '10px 0 4px', color: 'var(--accent)' }}>
-              {t.intl.mostCaps}
-            </h4>
-            {leaders.slice(0, 10).map((l, idx) => (
-              <div key={l.player_id} className="news-item" style={{ display: 'flex', gap: 8, fontSize: 12 }}>
-                <span className="tabular" style={{ width: 18, color: 'var(--text-dim)' }}>
-                  {idx + 1}
-                </span>
-                <span style={{ fontWeight: 600 }}>{l.player_name}</span>
-                <span style={{ color: 'var(--text-dim)' }}>{l.country_name}</span>
-                <span className="tabular" style={{ marginLeft: 'auto' }}>
-                  {l.caps} caps · OVR {l.power}
-                </span>
-              </div>
-            ))}
+            {(
+              [
+                [t.intl.mostGoals, (l: NationalLeaderDto) => `${l.goals} ⚽`],
+                [t.intl.mostAssists, (l: NationalLeaderDto) => `${l.assists} 🅰`],
+                [t.intl.mostCaps, (l: NationalLeaderDto) => `${l.caps} caps`],
+              ] as [string, (l: NationalLeaderDto) => string][]
+            ).map(([label, value]) => {
+              const sorted = [...leaders]
+                .sort((a, b) => {
+                  if (label === t.intl.mostGoals) return b.goals - a.goals;
+                  if (label === t.intl.mostAssists) return b.assists - a.assists;
+                  return b.caps - a.caps;
+                })
+                .slice(0, 5);
+              return (
+                <div key={label}>
+                  <h4 style={{ fontSize: 12.5, margin: '10px 0 4px', color: 'var(--accent)' }}>
+                    {label}
+                  </h4>
+                  {sorted.map((l, idx) => (
+                    <div
+                      key={`${label}-${l.player_id}`}
+                      className="news-item"
+                      style={{ display: 'flex', gap: 8, fontSize: 12 }}
+                    >
+                      <span className="tabular" style={{ width: 18, color: 'var(--text-dim)' }}>
+                        {idx + 1}
+                      </span>
+                      <span style={{ fontWeight: 600 }}>{l.player_name}</span>
+                      <span style={{ color: 'var(--text-dim)' }}>{l.country_name}</span>
+                      <span className="tabular" style={{ marginLeft: 'auto' }}>
+                        {value(l)}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              );
+            })}
           </>
         )}
         {squad.map((p) => (

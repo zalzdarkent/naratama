@@ -204,7 +204,9 @@
     "noCallups": "No release requests.",
     "release": "Release",
     "hold": "Hold",
-    "mostCaps": "Most Capped Players"
+    "mostCaps": "Most Capped Players",
+    "mostGoals": "National Top Scorers",
+    "mostAssists": "National Top Assists"
   },
   "match": {
     "title": "Match Replay",

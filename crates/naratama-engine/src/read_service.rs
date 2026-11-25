@@ -311,6 +311,8 @@ pub struct NationalLeader {
     pub player_name: String,
     pub country_name: String,
     pub caps: i32,
+    pub goals: i32,
+    pub assists: i32,
     pub power: i32,
 }
 
@@ -1600,30 +1602,40 @@ impl ReadService {
         Ok(logos)
     }
 
-    /// Most-capped players in the world (national team appearances).
+    /// National-team leaders for the season: goals, assists and caps.
     pub fn national_leaders(
         conn: &Connection,
+        season_id: SeasonId,
         limit: usize,
     ) -> NaratamaResult<Vec<NationalLeader>> {
+        let limit = i64::try_from(limit).unwrap_or(20);
         let mut stmt = conn
             .prepare(
                 "SELECT p.player_id, COALESCE(p.name, 'Player'),
-                        COALESCE(c.name, ''), COALESCE(p.national_caps, 0), COALESCE(p.power, 60)
-                 FROM players p
-                 LEFT JOIN countries c ON c.country_id = p.country_id
-                 WHERE COALESCE(p.national_caps, 0) > 0
-                 ORDER BY COALESCE(p.national_caps, 0) DESC, COALESCE(p.power, 0) DESC
-                 LIMIT ?1",
+                        COALESCE(c.name, ''),
+                        COALESCE(st.matches_played, 0),
+                        COALESCE(st.goals, 0),
+                        COALESCE(st.assists, 0),
+                        COALESCE(p.power, 60)
+                 FROM player_season_stats_countries st
+                 JOIN players p ON p.player_id = st.player_id
+                 LEFT JOIN countries c ON c.country_id = st.country_id
+                 WHERE st.season_id = ?1
+                 ORDER BY COALESCE(st.goals, 0) DESC, COALESCE(st.assists, 0) DESC,
+                          COALESCE(st.matches_played, 0) DESC
+                 LIMIT ?2",
             )
             .map_err(db_err)?;
         let rows = stmt
-            .query_map(params![i64::try_from(limit).unwrap_or(20)], |r| {
+            .query_map(params![season_id.0, limit], |r| {
                 Ok(NationalLeader {
                     player_id: PlayerId(r.get(0)?),
                     player_name: r.get(1)?,
                     country_name: r.get(2)?,
                     caps: r.get(3)?,
-                    power: r.get(4)?,
+                    goals: r.get(4)?,
+                    assists: r.get(5)?,
+                    power: r.get(6)?,
                 })
             })
             .map_err(db_err)?;

@@ -1612,7 +1612,7 @@ fn get_national_leaders(state: State<'_, AppState>) -> Result<Vec<NationalLeader
     let active = guard
         .as_ref()
         .ok_or_else(|| "No active career session".to_string())?;
-    ReadService::national_leaders(&active.conn, 20).map_err(|e| e.to_string())
+    ReadService::national_leaders(&active.conn, active.season_id, 20).map_err(|e| e.to_string())
 }
 
 #[tauri::command]

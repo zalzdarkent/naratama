@@ -204,7 +204,9 @@
     "noCallups": "Tidak ada permintaan pelepasan.",
     "release": "Lepaskan",
     "hold": "Tahan",
-    "mostCaps": "Penampilan Terbanyak (Caps)"
+    "mostCaps": "Penampilan Terbanyak (Caps)",
+    "mostGoals": "Top Skor Timnas",
+    "mostAssists": "Top Assist Timnas"
   },
   "match": {
     "title": "Tayangan Ulang Laga",
