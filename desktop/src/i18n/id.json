@@ -163,5 +163,20 @@
     "shootout": "Adu Penalti",
     "penalties": "Adu Penalti",
     "noEvents": "Belum ada kejadian penting."
+  },
+  "live": {
+    "title": "Laga Langsung",
+    "firstHalf": "Babak Pertama",
+    "secondHalf": "Babak Kedua",
+    "finished": "Laga Selesai",
+    "subsLeft": "Sisa Substitusi",
+    "out": "Keluar",
+    "in": "Masuk",
+    "substitution": "Substitusi",
+    "apply": "Terapkan",
+    "defensive": "Bertahan",
+    "balanced": "Seimbang",
+    "attacking": "Menyerang",
+    "commit": "Simpan & Lanjut"
   }
 }

@@ -147,6 +147,23 @@ export interface MatchEventDto {
   detail: string | null;
 }
 
+export interface LiveMatchSnapshotDto {
+  match_id: number;
+  minute: number;
+  user_side: 'home' | 'away';
+  home_team_id: number;
+  away_team_id: number;
+  home_name: string;
+  away_name: string;
+  home_goals: number;
+  away_goals: number;
+  on_pitch: PlayerDto[];
+  bench: PlayerDto[];
+  subs_left: number;
+  events: MatchEventDto[];
+  finished: boolean;
+}
+
 export interface MatchReplayDto {
   match_id: number;
   date: string;
@@ -450,6 +467,26 @@ export const desktopApi = {
         { match_id: 1001, home_team_id: 101, away_team_id: 102, home_goals: 2, away_goals: 1, winner_id: 101 },
       ]
     );
+  },
+  async startLiveMatch(): Promise<LiveMatchSnapshotDto | null> {
+    return (await tauriInvoke<LiveMatchSnapshotDto | null>('start_live_match')) ?? null;
+  },
+  async liveMatchAdvance(minute: number): Promise<LiveMatchSnapshotDto | null> {
+    return (await tauriInvoke<LiveMatchSnapshotDto | null>('live_match_advance', { minute })) ?? null;
+  },
+  async liveMatchAdjust(
+    substitutions: [number, number][],
+    mentality: string | null,
+  ): Promise<LiveMatchSnapshotDto | null> {
+    return (
+      (await tauriInvoke<LiveMatchSnapshotDto | null>('live_match_adjust', {
+        substitutions,
+        mentality,
+      })) ?? null
+    );
+  },
+  async finishLiveMatch(): Promise<MatchdayOutcomeDto[]> {
+    return (await tauriInvoke<MatchdayOutcomeDto[]>('finish_live_match')) ?? [];
   },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;

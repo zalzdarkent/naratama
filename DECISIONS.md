@@ -41,3 +41,9 @@ Status: accepted (2026-11-25)
 Context: PRD meminta pengalaman menonton menit-per-menit (1x/2x/4x/Skip + VAR + adu penalti), tetapi engine Rust belum punya API simulasi bertahap dengan intervensi di tengah laga.
 Decision: `DesktopFacade::latest_match_replay` membaca laga user terakhir yang selesai beserta `match_incidents`, lalu UI memutar ulang kejadian itu sebagai timeline (skor berjalan, gol/bunuh diri/penalti, kartu, cedera, VAR, penalti shootout) tanpa mengubah hasil yang sudah tersimpan. Layout pertandingan tetap dihitung penuh di backend sehingga determinisme dan invariant ledger tidak berubah.
 Consequences: Pengalaman menonton tersedia tanpa risiko state ganda; fitur interaktif (subs/mentality) tetap dicatat sebagai pekerjaan terpisah karena membutuhkan simulator inkremental.
+
+## ADR-008: LiveMatch Inkremental & Commit Lewat Jalur Matchday Biasa
+Status: accepted (2026-11-25)
+Context: ADR-007 menunda substitusi/mentality karena engine mensimulasikan 90 menit sekaligus; memindahkan persistensi ke jalur kedua berisiko membuat ledger/statistik tidak konsisten.
+Decision: `MatchEngine` dipecah menjadi `LiveMatch` yang menyimpan `SimState`, parameter basis skor, dan jam internal; `advance_to` memutar menit bertahap, `adjust` mengganti pemain di lapangan + mentality lalu menghitung ulang parameter dari XI yang sedang bermain, dan `run_full` tetap identik dengan `simulate` (dibuktikan test paritas). Hasil akhir live match dikirim ke `MatchdayService::simulate_matchday` sebagai `preset_result`, sehingga persistensi, finansial, skorsing, berita, dan housekeeping tetap satu jalur.
+Consequences: Interaksi tersedia tanpa menduplikasi logika persistensi; batas 5 substitusi per sisi dan perubahan kekuatan hanya dihitung ulang saat ada penyesuaian (tanpa penyesuaian, hasil identik dengan simulasi lama).

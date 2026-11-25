@@ -12,18 +12,31 @@ use naratama_engine::{
     DesktopFacade, FinanceService, GenerateCareerRequest, InboxMessageRow, InboxService,
     InitialSquadPreset, MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine,
     NewsItemRow, OfferResponseAction, OffseasonService, PreseasonCamp, SeasonGenerator,
-    MatchReplay, SquadTacticsService, StadiumArchitecture, TrainingFocus, TransferMarketService,
+    MatchReplay, PreparedFixture, SquadTacticsService, StadiumArchitecture,
+    TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
-    ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchStatus, Money,
+    ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchId, MatchStatus, Money,
     PlayableCountrySummary, Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Team,
     TeamId, TournamentId,
 };
+use naratama_sim::{LiveMatch, MatchEvent, MatchMentality, MatchResult, MatchSide};
 use rand::rngs::StdRng;
 use rand::SeedableRng;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 use tauri::State;
+
+pub struct LiveSession {
+    pub match_id: i64,
+    pub date: NaiveDate,
+    pub user_side: MatchSide,
+    pub match_state: LiveMatch,
+    pub home_name: String,
+    pub away_name: String,
+    pub home_team_id: TeamId,
+    pub away_team_id: TeamId,
+}
 
 pub struct ActiveCareer {
     pub slot_index: u8,
@@ -34,6 +47,25 @@ pub struct ActiveCareer {
     pub league_tournament_id: TournamentId,
     pub user_region: String,
     pub rng: StdRng,
+    pub live: Option<LiveSession>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct LiveMatchSnapshot {
+    pub match_id: i64,
+    pub minute: i32,
+    pub user_side: String,
+    pub home_team_id: i64,
+    pub away_team_id: i64,
+    pub home_name: String,
+    pub away_name: String,
+    pub home_goals: i32,
+    pub away_goals: i32,
+    pub on_pitch: Vec<Player>,
+    pub bench: Vec<Player>,
+    pub subs_left: i32,
+    pub events: Vec<MatchEvent>,
+    pub finished: bool,
 }
 
 pub struct AppState {
@@ -321,6 +353,7 @@ fn start_new_career(
         league_tournament_id: primary.tournament_id,
         user_region: region,
         rng,
+        live: None,
     });
     Ok(snap)
 }
@@ -455,6 +488,7 @@ fn start_custom_club_career(
         league_tournament_id: primary.tournament_id,
         user_region: region,
         rng,
+        live: None,
     });
     Ok(snap)
 }
@@ -507,6 +541,7 @@ fn load_career_slot(
         .lock()
         .map_err(|_| "Career lock poisoned".to_string())?;
     *guard = Some(ActiveCareer {
+        live: None,
         slot_index,
         manager_name,
         conn,
@@ -598,16 +633,10 @@ fn save_tactics(
         .map_err(|e| e.to_string())
 }
 
-#[tauri::command]
-fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutcome>, String> {
-    let mut guard = state
-        .active
-        .lock()
-        .map_err(|_| "Career lock poisoned".to_string())?;
-    let active = guard
-        .as_mut()
-        .ok_or_else(|| "No active career session".to_string())?;
-
+fn run_matchday(
+    active: &mut ActiveCareer,
+    preset: Option<(MatchId, MatchResult)>,
+) -> Result<Vec<MatchdayOutcome>, String> {
     let next_date_str: Option<String> = active
         .conn
         .query_row(
@@ -628,7 +657,7 @@ fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutc
         true,
         active.user_team_id,
         &mut active.rng,
-        None,
+        preset.as_ref(),
     )
     .map_err(|e| e.to_string())?;
 
@@ -667,6 +696,190 @@ fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutc
         );
     }
     Ok(outcomes)
+}
+
+#[tauri::command]
+fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutcome>, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    run_matchday(active, None)
+}
+
+fn live_snapshot(session: &LiveSession) -> LiveMatchSnapshot {
+    let (home_goals, away_goals) = session.match_state.score();
+    LiveMatchSnapshot {
+        match_id: session.match_id,
+        minute: session.match_state.minute(),
+        user_side: match session.user_side {
+            MatchSide::Home => "home".to_string(),
+            MatchSide::Away => "away".to_string(),
+        },
+        home_team_id: session.home_team_id.0,
+        away_team_id: session.away_team_id.0,
+        home_name: session.home_name.clone(),
+        away_name: session.away_name.clone(),
+        home_goals,
+        away_goals,
+        on_pitch: session.match_state.on_pitch(session.user_side),
+        bench: session.match_state.bench(session.user_side),
+        subs_left: LiveMatch::MAX_SUBS - session.match_state.subs_used(session.user_side),
+        events: session.match_state.events().to_vec(),
+        finished: session.match_state.minute() >= 90,
+    }
+}
+
+fn next_scheduled_date(active: &ActiveCareer) -> Result<Option<(String, NaiveDate)>, String> {
+    let next_date_str: Option<String> = active
+        .conn
+        .query_row(
+            "SELECT MIN(date) FROM matches WHERE season_id = ?1 AND status = ?2 AND date IS NOT NULL",
+            params![active.season_id.0, MatchStatus::Scheduled as i64],
+            |r| r.get(0),
+        )
+        .map_err(|e| e.to_string())?;
+    match next_date_str {
+        Some(ds) => {
+            let date = NaiveDate::parse_from_str(&ds, "%Y-%m-%d").map_err(|e| e.to_string())?;
+            Ok(Some((ds, date)))
+        }
+        None => Ok(None),
+    }
+}
+
+/// Starts an interactive live match for the user's next fixture; `None` when there is no user match.
+#[tauri::command]
+fn start_live_match(state: State<'_, AppState>) -> Result<Option<LiveMatchSnapshot>, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let Some((_, date)) = next_scheduled_date(active)? else {
+        return Ok(None);
+    };
+    let Some((fixture, prepared)) = MatchdayService::prepare_live_match(
+        &active.conn,
+        active.season_id,
+        date,
+        active.user_team_id,
+    )
+    .map_err(|e| e.to_string())?
+    else {
+        return Ok(None);
+    };
+    let PreparedFixture { input, banned } = prepared;
+    let user_side = if fixture.home_team_id == active.user_team_id {
+        MatchSide::Home
+    } else {
+        MatchSide::Away
+    };
+    let ref_repo = ReferenceRepo::new(&active.conn);
+    let home_name = ref_repo
+        .team_by_id(fixture.home_team_id)
+        .map_err(|e| e.to_string())?
+        .map_or_else(|| format!("Club #{}", fixture.home_team_id.0), |t| t.name);
+    let away_name = ref_repo
+        .team_by_id(fixture.away_team_id)
+        .map_err(|e| e.to_string())?
+        .map_or_else(|| format!("Club #{}", fixture.away_team_id.0), |t| t.name);
+    let session = LiveSession {
+        match_id: fixture.match_id.0,
+        date,
+        user_side,
+        match_state: LiveMatch::from_input(&input, true, &banned),
+        home_name,
+        away_name,
+        home_team_id: fixture.home_team_id,
+        away_team_id: fixture.away_team_id,
+    };
+    let snapshot = live_snapshot(&session);
+    active.live = Some(session);
+    Ok(Some(snapshot))
+}
+
+#[tauri::command]
+fn live_match_advance(
+    state: State<'_, AppState>,
+    minute: i32,
+) -> Result<LiveMatchSnapshot, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let Some(session) = active.live.as_mut() else {
+        return Err("No live match in progress".to_string());
+    };
+    session.match_state.advance_to(&mut active.rng, minute);
+    Ok(live_snapshot(session))
+}
+
+#[tauri::command]
+fn live_match_adjust(
+    state: State<'_, AppState>,
+    substitutions: Vec<(i64, i64)>,
+    mentality: Option<String>,
+) -> Result<LiveMatchSnapshot, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let Some(session) = active.live.as_mut() else {
+        return Err("No live match in progress".to_string());
+    };
+    let pairs: Vec<(PlayerId, PlayerId)> = substitutions
+        .into_iter()
+        .map(|(out_id, in_id)| (PlayerId(out_id), PlayerId(in_id)))
+        .collect();
+    let side = session.user_side;
+    session
+        .match_state
+        .adjust(
+            &mut active.rng,
+            side,
+            &pairs,
+            mentality.map(|m| match m.as_str() {
+                "defensive" => MatchMentality::Defensive,
+                "attacking" => MatchMentality::Attacking,
+                _ => MatchMentality::Balanced,
+            }),
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(live_snapshot(session))
+}
+
+#[tauri::command]
+fn finish_live_match(state: State<'_, AppState>) -> Result<Vec<MatchdayOutcome>, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let Some(session) = active.live.take() else {
+        return Err("No live match in progress".to_string());
+    };
+    let Some((_, next_date)) = next_scheduled_date(active)? else {
+        return Err("No remaining matchday".to_string());
+    };
+    if next_date != session.date {
+        return Err("Live match fixture is no longer the next matchday".to_string());
+    }
+    let result = session.match_state.finish(&mut active.rng);
+    run_matchday(active, Some((MatchId(session.match_id), result)))
 }
 
 #[tauri::command]
@@ -1140,6 +1353,10 @@ pub fn run() {
             get_tactics,
             save_tactics,
             simulate_next_matchday,
+            start_live_match,
+            live_match_advance,
+            live_match_adjust,
+            finish_live_match,
             get_match_replay,
             train_focus,
             get_club_hub,

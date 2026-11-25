@@ -18,6 +18,7 @@ fn template_db_path() -> PathBuf {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn wave8_live_match_half_time_adjustments_commit_and_finish_matchday() {
     let dir = tempdir().unwrap();
     let mgr = SessionManager::new(dir.path(), template_db_path());

@@ -163,5 +163,20 @@
     "shootout": "Penalty Shootout",
     "penalties": "Penalties",
     "noEvents": "No key incidents yet."
+  },
+  "live": {
+    "title": "Live Match",
+    "firstHalf": "First Half",
+    "secondHalf": "Second Half",
+    "finished": "Full Time",
+    "subsLeft": "Subs Left",
+    "out": "Off",
+    "in": "On",
+    "substitution": "Substitution",
+    "apply": "Apply",
+    "defensive": "Defensive",
+    "balanced": "Balanced",
+    "attacking": "Attacking",
+    "commit": "Commit & Continue"
   }
 }

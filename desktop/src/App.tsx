@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ClubHubDto,
   CountryRankDto,
@@ -7,6 +7,7 @@ import {
   formatMoney,
   InboxMessageDto,
   isTauriRuntime,
+  LiveMatchSnapshotDto,
   MarketListingDto,
   MatchdayOutcomeDto,
   MatchReplayDto,
@@ -14,6 +15,7 @@ import {
   PlayerDto,
   positionMeta,
 } from './api/bridge';
+import { LiveMatchPanel } from './components/LiveMatchPanel';
 import { MatchReplay } from './components/MatchReplay';
 import { OffseasonModal } from './components/OffseasonModal';
 import { StartScreen } from './components/StartScreen';
@@ -90,6 +92,7 @@ export function App() {
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerDto | null>(null);
   const [matchOutcomes, setMatchOutcomes] = useState<MatchdayOutcomeDto[] | null>(null);
   const [replay, setReplay] = useState<MatchReplayDto | null>(null);
+  const [live, setLive] = useState<LiveMatchSnapshotDto | null>(null);
   const [showOffseason, setShowOffseason] = useState(false);
   const [staffRole, setStaffRole] = useState('head_physio');
   const [staffName, setStaffName] = useState('Coach Pratama');
@@ -157,10 +160,57 @@ export function App() {
     return map;
   }, [snapshot]);
 
+  const advancingRef = useRef(false);
+  const handleAdvanceLive = async (minute: number) => {
+    // One advance in flight at a time: a late response must never rewind or duplicate minutes.
+    if (busy || advancingRef.current) return;
+    advancingRef.current = true;
+    try {
+      const next = await desktopApi.liveMatchAdvance(minute);
+      if (next) setLive(next);
+    } catch (err) {
+      notify(String(err));
+    } finally {
+      advancingRef.current = false;
+    }
+  };
+
+  const handleAdjustLive = async (subs: [number, number][], mentality: string | null) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      const next = await desktopApi.liveMatchAdjust(subs, mentality);
+      if (next) setLive(next);
+    } catch (err) {
+      notify(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const finishLive = async () => {
+    setBusy(true);
+    try {
+      const outcomes = await desktopApi.finishLiveMatch();
+      setLive(null);
+      if (outcomes.length > 0) setMatchOutcomes(outcomes);
+      await refresh();
+    } catch (err) {
+      notify(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handlePlayMatchday = async () => {
     if (busy || !snapshot?.next_match) return;
     setBusy(true);
     try {
+      const started = await desktopApi.startLiveMatch();
+      if (started) {
+        setLive(started);
+        return;
+      }
       const outcomes = await desktopApi.simulateNextMatchday();
       const userMatch = outcomes.find(
         (o) =>
@@ -205,6 +255,7 @@ export function App() {
         setMatchOutcomes(null);
         setShowOffseason(false);
         setReplay(null);
+        setLive(null);
         void handlePlayMatchday();
         return;
       }
@@ -212,6 +263,7 @@ export function App() {
         setMatchOutcomes(null);
         setShowOffseason(false);
         setReplay(null);
+        setLive(null);
         return;
       }
       const key = ev.key.toLowerCase();
@@ -999,6 +1051,18 @@ export function App() {
             </table>
           </div>
         </div>
+      )}
+
+      {live && (
+        <LiveMatchPanel
+          locale={locale}
+          snapshot={live}
+          busy={busy}
+          onAdvance={(minute) => void handleAdvanceLive(minute)}
+          onAdjust={(subs, mentality) => void handleAdjustLive(subs, mentality)}
+          onFinish={() => void finishLive()}
+          onClose={() => setLive(null)}
+        />
       )}
 
       {replay && (
