@@ -413,6 +413,26 @@ export interface ManagerOfferDto {
   from_power: number;
 }
 
+export interface DutyRequestDto {
+  duty_id: number;
+  player_name: string;
+  country_name: string;
+  window_id: string;
+  release_date: string;
+  return_date: string;
+}
+
+export interface NationalSquadPlayerDto {
+  player_id: number;
+  player_name: string;
+  position_id: number;
+  power: number;
+  age: number;
+  caps: number;
+  shirt_number: number;
+  is_captain: boolean;
+}
+
 export interface SponsorOfferDto {
   slot_type: string;
   sponsor_id: number;
@@ -878,6 +898,18 @@ export const desktopApi = {
   },
   async terminateSponsorship(sponsorshipId: number): Promise<void> {
     await tauriInvoke('terminate_sponsorship', { sponsorshipId });
+  },
+  async getDutyRequests(): Promise<DutyRequestDto[]> {
+    return (await tauriInvoke<DutyRequestDto[]>('get_duty_requests')) ?? [];
+  },
+  async respondFriendlyCallup(dutyId: number, approve: boolean): Promise<void> {
+    await tauriInvoke('respond_friendly_callup', { dutyId, approve });
+  },
+  async getCalledUpCountries(): Promise<[number, string][]> {
+    return (await tauriInvoke<[number, string][]>('get_called_up_countries')) ?? [];
+  },
+  async getNationalSquad(countryId: number): Promise<NationalSquadPlayerDto[]> {
+    return (await tauriInvoke<NationalSquadPlayerDto[]>('get_national_squad', { countryId })) ?? [];
   },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;

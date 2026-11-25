@@ -170,7 +170,15 @@
     "rank": "#",
     "nation": "Nation",
     "points": "Elo Points",
-    "power": "OVR"
+    "power": "OVR",
+    "podiums": "National Team Podiums",
+    "noPodiums": "No podiums this season yet.",
+    "calledSquad": "Called-up Squad",
+    "noSquad": "No squad called up yet.",
+    "callupRequests": "Player Release Requests",
+    "noCallups": "No release requests.",
+    "release": "Release",
+    "hold": "Hold"
   },
   "match": {
     "title": "Match Replay",

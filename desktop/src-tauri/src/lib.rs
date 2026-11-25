@@ -11,10 +11,11 @@ use naratama_engine::{
     BoardAmbition, ClubLifeNews, CompetitionOverview, CustomClubRequest, CustomClubService,
     DashboardSnapshot, DesktopFacade, FinanceService, GenerateCareerRequest, HonourRow,
     InboxMessageRow, InboxService, InitialSquadPreset, MatchReplay, MatchStatistics,
-    MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine, NewsItemRow,
+    MatchdayOutcome, MatchdayService, NationalTeamSelectionService, NationalTeamService,
+    NewsEngine, NewsItemRow,
     OfferResponseAction, OffseasonService, PlayerDetail, PreseasonCamp, PreparedFixture,
     AcademyProspect, ClubOpsService, ContractRenewal, ManagerOfferRow, ManagerOfferService,
-    OfferInfo, ReadService, SponsorOffer, StadiumExpansion,
+    DutyRequestInfo, NationalSquadPlayer, OfferInfo, ReadService, SponsorOffer, StadiumExpansion,
     ScoutInfo, ScoutReportInfo, ScoutingService, SeasonAwardRow, SeasonGenerator,
     SquadTacticsService,
     StadiumArchitecture, TeamDetail, TrainingFocus, TransferMarketService,
@@ -1421,6 +1422,66 @@ fn terminate_sponsorship(
 }
 
 #[tauri::command]
+fn get_duty_requests(state: State<'_, AppState>) -> Result<Vec<DutyRequestInfo>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::duty_requests(&active.conn, active.user_team_id, active.season_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn respond_friendly_callup(
+    state: State<'_, AppState>,
+    duty_id: i64,
+    approve: bool,
+) -> Result<(), String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    NationalTeamSelectionService::respond_to_friendly_callup(&mut active.conn, duty_id, approve)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_called_up_countries(
+    state: State<'_, AppState>,
+) -> Result<Vec<(i64, String)>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::called_up_countries(&active.conn, active.season_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn get_national_squad(
+    state: State<'_, AppState>,
+    country_id: i64,
+) -> Result<Vec<NationalSquadPlayer>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::national_squad(&active.conn, CountryId(country_id), active.season_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
         .active
@@ -1958,6 +2019,10 @@ pub fn run() {
             get_sponsor_offers,
             sign_sponsorship,
             terminate_sponsorship,
+            get_duty_requests,
+            respond_friendly_callup,
+            get_called_up_countries,
+            get_national_squad,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

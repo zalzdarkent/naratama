@@ -24,6 +24,7 @@ import {
 import { CompetitionPanel } from './components/CompetitionPanel';
 import { DossierModal } from './components/DossierModal';
 import { HistoryPanel } from './components/HistoryPanel';
+import { InternationalPanel } from './components/InternationalPanel';
 import { LiveMatchPanel } from './components/LiveMatchPanel';
 import { MatchStatsModal } from './components/MatchStatsModal';
 import { ScoutingPanel } from './components/ScoutingPanel';
@@ -802,33 +803,37 @@ export function App() {
         )}
 
         {route === 'international' && (
-          <section className="card">
-            <h3 className="card-title">{t.intl.rankings}</h3>
-            <table className="data-table tabular">
-              <thead>
-                <tr>
-                  <th>{t.intl.rank}</th>
-                  <th>{t.intl.nation}</th>
-                  <th>{t.intl.power}</th>
-                  <th>{t.intl.points}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankings.slice(0, 50).map((c, idx) => (
-                  <tr key={c.country_id}>
-                    <td>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>
-                      {c.name} <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>({c.iso2})</span>
-                    </td>
-                    <td>{c.power}</td>
-                    <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
-                      {c.points.toFixed(2)}
-                    </td>
+          <>
+            <InternationalPanel locale={locale} notify={notify} />
+            <section className="card" style={{ marginTop: 12 }}>
+              <h3 className="card-title">{t.intl.rankings}</h3>
+              <table className="data-table tabular">
+                <thead>
+                  <tr>
+                    <th>{t.intl.rank}</th>
+                    <th>{t.intl.nation}</th>
+                    <th>{t.intl.power}</th>
+                    <th>{t.intl.points}</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+                </thead>
+                <tbody>
+                  {rankings.slice(0, 50).map((c, idx) => (
+                    <tr key={c.country_id}>
+                      <td>{idx + 1}</td>
+                      <td style={{ fontWeight: 600 }}>
+                        {c.name}{' '}
+                        <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>({c.iso2})</span>
+                      </td>
+                      <td>{c.power}</td>
+                      <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
+                        {c.points.toFixed(2)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+          </>
         )}
 
         {route === 'market' && (

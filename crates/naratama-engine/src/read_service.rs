@@ -228,6 +228,28 @@ pub struct AcademyProspect {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DutyRequestInfo {
+    pub duty_id: i64,
+    pub player_name: String,
+    pub country_name: String,
+    pub window_id: String,
+    pub release_date: String,
+    pub return_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NationalSquadPlayer {
+    pub player_id: PlayerId,
+    pub player_name: String,
+    pub position_id: i32,
+    pub power: i32,
+    pub age: i32,
+    pub caps: i32,
+    pub shirt_number: i32,
+    pub is_captain: bool,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OfferInfo {
     pub offer_id: i64,
     pub player_id: PlayerId,
@@ -1304,6 +1326,95 @@ impl ReadService {
             .optional()
             .map_err(db_err)?;
         Ok(row)
+    }
+
+    /// Pending international release requests involving the club's players.
+    pub fn duty_requests(
+        conn: &Connection,
+        team_id: TeamId,
+        season_id: SeasonId,
+    ) -> NaratamaResult<Vec<DutyRequestInfo>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT d.duty_id, COALESCE(p.name, 'Player'), COALESCE(c.name, 'Nation'),
+                        d.window_id, d.release_date, d.return_date
+                 FROM international_duty d
+                 LEFT JOIN players p ON p.player_id = d.player_id
+                 LEFT JOIN countries c ON c.country_id = d.country_id
+                 JOIN team_players tp ON tp.player_id = d.player_id
+                 WHERE tp.team_id = ?1 AND d.season_id = ?2
+                   AND d.status = 'pending_release'
+                 ORDER BY d.release_date ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0, season_id.0], |r| {
+                Ok(DutyRequestInfo {
+                    duty_id: r.get(0)?,
+                    player_name: r.get(1)?,
+                    country_name: r.get(2)?,
+                    window_id: r.get(3)?,
+                    release_date: r.get(4)?,
+                    return_date: r.get(5)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// The nation's currently called-up squad for the season (23 names by default).
+    pub fn national_squad(
+        conn: &Connection,
+        country_id: naratama_model::CountryId,
+        season_id: SeasonId,
+    ) -> NaratamaResult<Vec<NationalSquadPlayer>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT d.player_id, COALESCE(p.name, 'Player'), COALESCE(p.position_id, 8),
+                        COALESCE(p.power, 60), COALESCE(p.age, 24), COALESCE(p.national_caps, 0),
+                        COALESCE(d.squad_number, 0), COALESCE(d.is_captain, 0),
+                        COALESCE(p.club_id, 0)
+                 FROM international_duty d
+                 LEFT JOIN players p ON p.player_id = d.player_id
+                 WHERE d.country_id = ?1 AND d.season_id = ?2 AND d.status = 'active'
+                 ORDER BY COALESCE(d.squad_number, 99) ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![country_id.0, season_id.0], |r| {
+                Ok(NationalSquadPlayer {
+                    player_id: PlayerId(r.get(0)?),
+                    player_name: r.get(1)?,
+                    position_id: r.get(2)?,
+                    power: r.get(3)?,
+                    age: r.get(4)?,
+                    caps: r.get(5)?,
+                    shirt_number: r.get(6)?,
+                    is_captain: r.get::<_, i32>(7)? != 0,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// Countries whose squad has already been called up this season.
+    pub fn called_up_countries(
+        conn: &Connection,
+        season_id: SeasonId,
+    ) -> NaratamaResult<Vec<(i64, String)>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT DISTINCT c.country_id, c.name
+                 FROM international_duty d
+                 JOIN countries c ON c.country_id = d.country_id
+                 WHERE d.season_id = ?1 AND d.status = 'active'
+                 ORDER BY c.name ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![season_id.0], |r| Ok((r.get(0)?, r.get(1)?)))
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
     }
 
     pub fn pending_manager_offer(conn: &Connection) -> NaratamaResult<Option<ManagerOfferRow>> {

@@ -170,7 +170,15 @@
     "rank": "#",
     "nation": "Negara",
     "points": "Poin Elo",
-    "power": "OVR"
+    "power": "OVR",
+    "podiums": "Podium Turnamen Timnas",
+    "noPodiums": "Belum ada podium musim ini.",
+    "calledSquad": "Skuad Terpilih",
+    "noSquad": "Belum ada skuad yang dipanggil.",
+    "callupRequests": "Permintaan Pelepasan Pemain",
+    "noCallups": "Tidak ada permintaan pelepasan.",
+    "release": "Lepaskan",
+    "hold": "Tahan"
   },
   "match": {
     "title": "Tayangan Ulang Laga",
