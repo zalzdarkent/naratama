@@ -214,6 +214,21 @@ impl ManagerOfferService {
         Ok(next)
     }
 
+    /// The single pending managerial offer, if the board of another club has made one.
+    pub fn pending_offer(conn: &Connection) -> NaratamaResult<Option<ManagerOfferRow>> {
+        let row = conn
+            .query_row(
+                "SELECT offer_id, team_id, season_id, date, status, club_name, league_name,
+                        target, contract_years, budget, power, from_power
+                 FROM manager_offers WHERE status = 0 ORDER BY offer_id DESC LIMIT 1",
+                [],
+                map_offer_row,
+            )
+            .optional()
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
     pub fn accepted_move(conn: &Connection) -> NaratamaResult<Option<ManagerOfferRow>> {
         conn.query_row(
             "SELECT offer_id, team_id, season_id, date, status, club_name, league_name,

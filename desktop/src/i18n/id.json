@@ -55,7 +55,8 @@
     "clubHub": "Pusat Klub",
     "inbox": "Kotak Masuk",
     "news": "Berita Dunia",
-    "history": "Riwayat & Juara"
+    "history": "Riwayat & Juara",
+    "scouting": "Scouting & Akademi"
   },
   "topbar": {
     "cash": "Kas Klub",
@@ -103,7 +104,13 @@
     "search": "Cari",
     "club": "Klub",
     "makeOffer": "Tawar",
-    "offerSent": "Hasil tawaran"
+    "offerSent": "Hasil tawaran",
+    "loan": "Pinjaman",
+    "seasons": "musim",
+    "incoming": "Tawaran Masuk untuk Pemain Anda",
+    "noIncoming": "Tidak ada tawaran masuk.",
+    "accept": "Terima",
+    "reject": "Tolak"
   },
   "clubHub": {
     "facilities": "Fasilitas Klub",
@@ -249,5 +256,38 @@
     "vulnerabilities": "Kelemahan Lawan",
     "counterTactics": "Saran Taktik",
     "short": "Analisis Lawan"
+  },
+  "scouting": {
+    "network": "Jaringan Pemantau Bakat",
+    "hire": "Rekrut Scout",
+    "hired": "Scout direkrut.",
+    "noScouts": "Belum ada scout.",
+    "back": "kembali",
+    "deployed": "Scout dikirim.",
+    "collect": "Kumpulkan Laporan",
+    "collected": "Laporan dikumpulkan.",
+    "reports": "Laporan Scouting",
+    "noReports": "Belum ada laporan.",
+    "sign": "Teken",
+    "signed": "Pemain direkrut.",
+    "academy": "Akademi Klub",
+    "noProspects": "Tidak ada pemain akademi menunggu.",
+    "promote": "Promosikan",
+    "promoted": "Pemain akademi dipromosikan.",
+    "regions": {
+      "europe": "Eropa",
+      "south_america": "Amerika Selatan",
+      "africa": "Afrika",
+      "asia": "Asia",
+      "north_america": "Amerika Utara"
+    }
+  },
+  "manager": {
+    "title": "Tawaran Menjadi Manajer",
+    "years": "musim kontrak",
+    "target": "Target",
+    "accept": "Terima Tawaran",
+    "decline": "Tolak",
+    "accepted": "Tawaran diterima. Klub baru berlaku musim depan."
   }
 }

@@ -345,6 +345,73 @@ export interface PlayerDetailDto {
   national_caps: number;
 }
 
+export interface ScoutInfoDto {
+  scout_id: number;
+  name: string;
+  stars: number;
+  region: string;
+  salary: number;
+  status: string;
+  return_date: string | null;
+}
+
+export interface ScoutReportDto {
+  report_id: number;
+  scout_name: string;
+  region: string;
+  date: string;
+  player_name: string;
+  age: number;
+  position_id: number;
+  power: number;
+  potential: number;
+  value: number;
+  country_id: number;
+}
+
+export interface AcademyProspectDto {
+  prospect_id: number;
+  name: string;
+  age: number;
+  position_id: number;
+  power: number;
+  potential: number;
+  stars: number;
+  profile: string;
+  height: number;
+  country_id: number;
+  created_date: string;
+}
+
+export interface OfferInfoDto {
+  offer_id: number;
+  player_id: number;
+  player_name: string;
+  from_team_id: number;
+  from_team_name: string;
+  offer_amount: number;
+  player_value: number;
+  is_loan: boolean;
+  loan_seasons: number;
+  created_date: string;
+  counter_amount: number | null;
+}
+
+export interface ManagerOfferDto {
+  offer_id: number;
+  team_id: number;
+  season_id: number;
+  date: string;
+  status: number;
+  club_name: string;
+  league_name: string;
+  target: string;
+  contract_years: number;
+  budget: number;
+  power: number;
+  from_power: number;
+}
+
 export interface DossierDto {
   formation: string;
   tactical_style: string;
@@ -704,6 +771,42 @@ export const desktopApi = {
   async getInternationalPodiums(): Promise<HonourRowDto[]> {
     return (await tauriInvoke<HonourRowDto[]>('get_international_podiums')) ?? [];
   },
+  async getScouts(): Promise<ScoutInfoDto[]> {
+    return (await tauriInvoke<ScoutInfoDto[]>('get_scouts')) ?? [];
+  },
+  async hireScout(name: string, stars: number, region: string): Promise<number> {
+    return (await tauriInvoke<number>('hire_scout', { name, stars, region })) ?? 0;
+  },
+  async deployScout(scoutId: number, region: string): Promise<string> {
+    return (await tauriInvoke<string>('deploy_scout', { scoutId, region })) ?? '';
+  },
+  async getScoutReports(): Promise<ScoutReportDto[]> {
+    return (await tauriInvoke<ScoutReportDto[]>('get_scout_reports')) ?? [];
+  },
+  async collectScoutReports(): Promise<number> {
+    return (await tauriInvoke<number>('collect_scout_reports')) ?? 0;
+  },
+  async signScoutReport(reportId: number): Promise<void> {
+    await tauriInvoke('sign_scout_report', { reportId });
+  },
+  async getAcademyProspects(): Promise<AcademyProspectDto[]> {
+    return (await tauriInvoke<AcademyProspectDto[]>('get_academy_prospects')) ?? [];
+  },
+  async signAcademyProspect(prospectId: number): Promise<void> {
+    await tauriInvoke('sign_academy_prospect', { prospectId });
+  },
+  async getIncomingOffers(): Promise<OfferInfoDto[]> {
+    return (await tauriInvoke<OfferInfoDto[]>('get_incoming_offers')) ?? [];
+  },
+  async respondTransferOffer(offerId: number, accept: boolean): Promise<string> {
+    return (await tauriInvoke<string>('respond_transfer_offer', { offerId, accept })) ?? '';
+  },
+  async getManagerOffer(): Promise<ManagerOfferDto | null> {
+    return (await tauriInvoke<ManagerOfferDto | null>('get_manager_offer')) ?? null;
+  },
+  async respondManagerOffer(offerId: number, accept: boolean): Promise<void> {
+    await tauriInvoke('respond_manager_offer', { offerId, accept });
+  },
   async getMatchReplay(): Promise<MatchReplayDto | null> {
     return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;
   },
@@ -738,12 +841,16 @@ export const desktopApi = {
     playerId: number,
     sellerTeamId: number,
     offerAmount: number,
+    isLoan = false,
+    loanSeasons = 1,
   ): Promise<string> {
     return (
       (await tauriInvoke<string>('make_transfer_offer', {
         playerId,
         sellerTeamId,
         offerAmount,
+        isLoan,
+        loanSeasons,
       })) ?? 'Offer accepted (preview)'
     );
   },

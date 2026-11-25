@@ -9,7 +9,9 @@ import {
   isTauriRuntime,
   DossierDto,
   LiveMatchSnapshotDto,
+  ManagerOfferDto,
   MatchStatisticsDto,
+  OfferInfoDto,
   PlayerDetailDto,
   MarketListingDto,
   MatchdayOutcomeDto,
@@ -23,6 +25,7 @@ import { DossierModal } from './components/DossierModal';
 import { HistoryPanel } from './components/HistoryPanel';
 import { LiveMatchPanel } from './components/LiveMatchPanel';
 import { MatchStatsModal } from './components/MatchStatsModal';
+import { ScoutingPanel } from './components/ScoutingPanel';
 import { TeamDetailModal } from './components/TeamDetailModal';
 import { MatchReplay } from './components/MatchReplay';
 import { OffseasonModal } from './components/OffseasonModal';
@@ -35,6 +38,7 @@ type RouteKey =
   | 'competitions'
   | 'international'
   | 'market'
+  | 'scouting'
   | 'clubHub'
   | 'inbox'
   | 'history'
@@ -106,6 +110,10 @@ export function App() {
   const [teamId, setTeamId] = useState<number | null>(null);
   const [dossier, setDossier] = useState<{ name: string; data: DossierDto } | null>(null);
   const [playerDetail, setPlayerDetail] = useState<PlayerDetailDto | null>(null);
+  const [incomingOffers, setIncomingOffers] = useState<OfferInfoDto[]>([]);
+  const [managerOffer, setManagerOffer] = useState<ManagerOfferDto | null>(null);
+  const [loanOffer, setLoanOffer] = useState(false);
+  const [loanSeasons, setLoanSeasons] = useState(1);
 
   const openMatch = (matchId: number) => {
     void desktopApi
@@ -134,14 +142,18 @@ export function App() {
   };
 
   const refresh = async () => {
-    const [dash, sq, tac, fifa, hub, msgs] = await Promise.all([
+    const [dash, sq, tac, fifa, hub, msgs, offers, move] = await Promise.all([
       desktopApi.getDashboard(),
       desktopApi.getSquad(),
       desktopApi.getTactics(),
       desktopApi.getFifaRankings(),
       desktopApi.getClubHub(),
       desktopApi.getInbox(),
+      desktopApi.getIncomingOffers(),
+      desktopApi.getManagerOffer(),
     ]);
+    setIncomingOffers(offers ?? []);
+    setManagerOffer(move ?? null);
     setSnapshot(dash);
     setSquad(sq);
     setFormation(FORMATIONS[tac.formation] ? tac.formation : '4-4-2');
@@ -281,6 +293,7 @@ export function App() {
       'competitions',
       'international',
       'market',
+      'scouting',
       'clubHub',
       'inbox',
       'history',
@@ -411,6 +424,8 @@ export function App() {
         listing.player.player_id,
         listing.club_id,
         listing.player.value,
+        loanOffer,
+        loanSeasons,
       );
       notify(`${t.market.offerSent}: ${msg}`);
       await refresh();
@@ -507,6 +522,7 @@ export function App() {
             ['competitions', t.nav.competitions],
             ['international', t.nav.international],
             ['market', t.nav.market],
+            ['scouting', t.nav.scouting],
             ['clubHub', t.nav.clubHub],
             ['inbox', t.nav.inbox],
             ['history', t.nav.history],
@@ -546,6 +562,46 @@ export function App() {
                 </div>
               </div>
             </section>
+
+            {managerOffer && (
+              <section className="card" style={{ borderColor: 'var(--accent)' }}>
+                <h3 className="card-title">{t.manager.title}</h3>
+                <div style={{ fontSize: 13, fontWeight: 700 }}>
+                  {managerOffer.club_name} · {managerOffer.league_name}
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--text-dim)', marginBottom: 8 }}>
+                  {managerOffer.contract_years} {t.manager.years} · {t.manager.target}: {managerOffer.target} ·{' '}
+                  {formatMoney(managerOffer.budget)} · OVR {managerOffer.power}
+                </div>
+                <div style={{ display: 'flex', gap: 6 }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() =>
+                      void desktopApi
+                        .respondManagerOffer(managerOffer.offer_id, true)
+                        .then(() => {
+                          notify(t.manager.accepted);
+                          setManagerOffer(null);
+                        })
+                        .catch((e) => notify(String(e)))
+                    }
+                  >
+                    {t.manager.accept}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() =>
+                      void desktopApi
+                        .respondManagerOffer(managerOffer.offer_id, false)
+                        .then(() => setManagerOffer(null))
+                        .catch((e) => notify(String(e)))
+                    }
+                  >
+                    {t.manager.decline}
+                  </button>
+                </div>
+              </section>
+            )}
 
             <div className="grid-2">
               <section className="card">
@@ -792,6 +848,23 @@ export function App() {
               >
                 {t.market.search}
               </button>
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-dim)' }}>
+                <input type="checkbox" checked={loanOffer} onChange={(e) => setLoanOffer(e.target.checked)} />
+                {t.market.loan}
+              </label>
+              {loanOffer && (
+                <select
+                  className="select"
+                  value={loanSeasons}
+                  onChange={(e) => setLoanSeasons(Number(e.target.value))}
+                >
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n} {t.market.seasons}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
             <table className="data-table tabular">
               <thead>
@@ -836,8 +909,58 @@ export function App() {
                 })}
               </tbody>
             </table>
+
+            <h3 className="card-title" style={{ marginTop: 16 }}>
+              {t.market.incoming} ({incomingOffers.length})
+            </h3>
+            {incomingOffers.length === 0 && (
+              <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.market.noIncoming}</div>
+            )}
+            {incomingOffers.map((offer) => (
+              <div key={offer.offer_id} className="news-item" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                <div>
+                  <div style={{ fontWeight: 700, fontSize: 12.5 }}>{offer.player_name}</div>
+                  <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
+                    {offer.from_team_name} · {formatMoney(offer.offer_amount)}
+                    {offer.is_loan ? ` · ${t.market.loan} ${offer.loan_seasons}` : ''} · {offer.created_date}
+                  </div>
+                </div>
+                <div style={{ marginLeft: 'auto', display: 'flex', gap: 6 }}>
+                  <button
+                    className="btn btn-primary"
+                    onClick={() =>
+                      void desktopApi
+                        .respondTransferOffer(offer.offer_id, true)
+                        .then((msg) => {
+                          notify(msg);
+                          return refresh();
+                        })
+                        .catch((e) => notify(String(e)))
+                    }
+                  >
+                    {t.market.accept}
+                  </button>
+                  <button
+                    className="btn btn-danger"
+                    onClick={() =>
+                      void desktopApi
+                        .respondTransferOffer(offer.offer_id, false)
+                        .then((msg) => {
+                          notify(msg);
+                          return refresh();
+                        })
+                        .catch((e) => notify(String(e)))
+                    }
+                  >
+                    {t.market.reject}
+                  </button>
+                </div>
+              </div>
+            ))}
           </section>
         )}
+
+        {route === 'scouting' && <ScoutingPanel locale={locale} notify={notify} />}
 
         {route === 'clubHub' && clubHub && (
           <div className="grid-2">

@@ -10,6 +10,8 @@ use naratama_sim::{build_tactical_dossier, compute_standings, TacticalDossier};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
+use crate::manager_service::{ManagerOfferRow, ManagerOfferService};
+
 /// One fixture row with resolved club names, shared by the schedule, bracket and match sheets.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FixtureRow {
@@ -182,6 +184,62 @@ pub struct PlayerDetail {
     pub season_stats: Vec<SeasonStatRow>,
     pub recent_ratings: Vec<(String, i32, bool)>,
     pub national_caps: i32,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScoutInfo {
+    pub scout_id: i64,
+    pub name: String,
+    pub stars: i32,
+    pub region: String,
+    pub salary: i64,
+    pub status: String,
+    pub return_date: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScoutReportInfo {
+    pub report_id: i64,
+    pub scout_name: String,
+    pub region: String,
+    pub date: String,
+    pub player_name: String,
+    pub age: i32,
+    pub position_id: i32,
+    pub power: i32,
+    pub potential: i32,
+    pub value: i64,
+    pub country_id: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct AcademyProspect {
+    pub prospect_id: i64,
+    pub name: String,
+    pub age: i32,
+    pub position_id: i32,
+    pub power: i32,
+    pub potential: i32,
+    pub stars: i32,
+    pub profile: String,
+    pub height: i32,
+    pub country_id: i64,
+    pub created_date: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct OfferInfo {
+    pub offer_id: i64,
+    pub player_id: PlayerId,
+    pub player_name: String,
+    pub from_team_id: TeamId,
+    pub from_team_name: String,
+    pub offer_amount: i64,
+    pub player_value: i64,
+    pub is_loan: bool,
+    pub loan_seasons: i32,
+    pub created_date: String,
+    pub counter_amount: Option<i64>,
 }
 
 /// Read-only aggregates for the desktop data screens (standings, schedule, bracket, stats, history).
@@ -1054,6 +1112,204 @@ impl ReadService {
             .collect())
     }
 
+    /// Hired scouts of the user's club (status, region, return date).
+    pub fn scouts(conn: &Connection, team_id: TeamId) -> NaratamaResult<Vec<ScoutInfo>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT scout_id, name, stars, COALESCE(region, ''), COALESCE(salary, 0),
+                        COALESCE(status, 'idle'), return_date
+                 FROM scouts WHERE team_id = ?1 ORDER BY scout_id ASC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0], |r| {
+                Ok(ScoutInfo {
+                    scout_id: r.get(0)?,
+                    name: r.get(1)?,
+                    stars: r.get(2)?,
+                    region: r.get(3)?,
+                    salary: r.get(4)?,
+                    status: r.get(5)?,
+                    return_date: r.get(6)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// Unsigned scouting reports waiting on a decision.
+    pub fn scout_reports(
+        conn: &Connection,
+        team_id: TeamId,
+    ) -> NaratamaResult<Vec<ScoutReportInfo>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT report_id, scout_name, region, date, player_name, age, position_id,
+                        power, potential, COALESCE(value, 0), country_id
+                 FROM scout_reports WHERE team_id = ?1 AND COALESCE(signed, 0) = 0
+                 ORDER BY potential DESC, report_id DESC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0], |r| {
+                Ok(ScoutReportInfo {
+                    report_id: r.get(0)?,
+                    scout_name: r.get(1)?,
+                    region: r.get(2)?,
+                    date: r.get(3)?,
+                    player_name: r.get(4)?,
+                    age: r.get(5)?,
+                    position_id: r.get(6)?,
+                    power: r.get(7)?,
+                    potential: r.get(8)?,
+                    value: r.get(9)?,
+                    country_id: r.get(10)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// Academy intake waiting to be signed to a youth contract.
+    pub fn academy_prospects(
+        conn: &Connection,
+        team_id: TeamId,
+    ) -> NaratamaResult<Vec<AcademyProspect>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT prospect_id, name, age, position_id, power, potential, stars,
+                        profile, height, country_id, created_date
+                 FROM academy_prospects
+                 WHERE team_id = ?1 AND COALESCE(signed, 0) = 0
+                 ORDER BY potential DESC, prospect_id DESC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0], |r| {
+                Ok(AcademyProspect {
+                    prospect_id: r.get(0)?,
+                    name: r.get(1)?,
+                    age: r.get(2)?,
+                    position_id: r.get(3)?,
+                    power: r.get(4)?,
+                    potential: r.get(5)?,
+                    stars: r.get(6)?,
+                    profile: r.get(7)?,
+                    height: r.get(8)?,
+                    country_id: r.get(9)?,
+                    created_date: r.get(10)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    /// Transfer offers awaiting the user's decision (incoming bids for own players).
+    pub fn incoming_offers(conn: &Connection, team_id: TeamId) -> NaratamaResult<Vec<OfferInfo>> {
+        let mut stmt = conn
+            .prepare(
+                "SELECT o.offer_id, o.player_id, COALESCE(p.name, 'Unknown'), o.from_team_id,
+                        COALESCE(ft.name, ''), o.offer_amount, o.player_value, o.status,
+                        o.is_loan, o.loan_seasons, o.created_date, o.counter_amount
+                 FROM transfer_offers o
+                 LEFT JOIN players p ON p.player_id = o.player_id
+                 LEFT JOIN teams ft ON ft.team_id = o.from_team_id
+                 WHERE o.to_team_id = ?1 AND o.status = 1
+                 ORDER BY o.offer_id DESC",
+            )
+            .map_err(db_err)?;
+        let rows = stmt
+            .query_map(params![team_id.0], |r| {
+                Ok(OfferInfo {
+                    offer_id: r.get(0)?,
+                    player_id: PlayerId(r.get(1)?),
+                    player_name: r.get(2)?,
+                    from_team_id: TeamId(r.get(3)?),
+                    from_team_name: r.get(4)?,
+                    offer_amount: r.get(5)?,
+                    player_value: r.get(6)?,
+                    is_loan: r.get::<_, i32>(8)? != 0,
+                    loan_seasons: r.get(9)?,
+                    created_date: r.get(10)?,
+                    counter_amount: r.get(11)?,
+                })
+            })
+            .map_err(db_err)?;
+        Ok(rows.filter_map(Result::ok).collect())
+    }
+
+    pub fn scout_report_row(
+        conn: &Connection,
+        report_id: i64,
+    ) -> NaratamaResult<Option<naratama_db::market_repo::ScoutReportRow>> {
+        let row = conn
+            .query_row(
+                "SELECT report_id, team_id, scout_id, scout_name, region, date, player_name,
+                        age, position_id, power, potential, COALESCE(value, 0), country_id,
+                        COALESCE(signed, 0)
+                 FROM scout_reports WHERE report_id = ?1",
+                params![report_id],
+                |r| {
+                    Ok(naratama_db::market_repo::ScoutReportRow {
+                        report_id: r.get(0)?,
+                        team_id: TeamId(r.get(1)?),
+                        scout_id: r.get(2)?,
+                        scout_name: r.get(3)?,
+                        region: r.get(4)?,
+                        date: parse_date(r.get(5)?),
+                        player_name: r.get(6)?,
+                        age: r.get(7)?,
+                        position_id: r.get(8)?,
+                        power: r.get(9)?,
+                        potential: r.get(10)?,
+                        value: r.get(11)?,
+                        country_id: naratama_model::CountryId(r.get(12)?),
+                        signed: r.get::<_, i32>(13)? != 0,
+                    })
+                },
+            )
+            .optional()
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
+    pub fn youth_prospect_row(
+        conn: &Connection,
+        prospect_id: i64,
+    ) -> NaratamaResult<Option<naratama_db::club_repo::YouthProspectRow>> {
+        let row = conn
+            .query_row(
+                "SELECT prospect_id, team_id, name, age, position_id, power, potential, stars,
+                        profile, height, country_id, created_date, COALESCE(signed, 0)
+                 FROM academy_prospects WHERE prospect_id = ?1",
+                params![prospect_id],
+                |r| {
+                    Ok(naratama_db::club_repo::YouthProspectRow {
+                        prospect_id: r.get(0)?,
+                        team_id: TeamId(r.get(1)?),
+                        name: r.get(2)?,
+                        age: r.get(3)?,
+                        position_id: r.get(4)?,
+                        power: r.get(5)?,
+                        potential: r.get(6)?,
+                        stars: r.get(7)?,
+                        profile: r.get(8)?,
+                        height: r.get(9)?,
+                        country_id: naratama_model::CountryId(r.get(10)?),
+                        created_date: parse_date(r.get(11)?),
+                        signed: r.get::<_, i32>(12)? != 0,
+                    })
+                },
+            )
+            .optional()
+            .map_err(db_err)?;
+        Ok(row)
+    }
+
+    pub fn pending_manager_offer(conn: &Connection) -> NaratamaResult<Option<ManagerOfferRow>> {
+        ManagerOfferService::pending_offer(conn)
+    }
+
     pub fn confederation_for_country(
         conn: &Connection,
         country_id: naratama_model::CountryId,
@@ -1162,6 +1418,10 @@ fn match_player_stats(
         })
         .map_err(db_err)?;
     Ok(rows.filter_map(Result::ok).collect())
+}
+
+fn parse_date(raw: Option<String>) -> Option<chrono::NaiveDate> {
+    raw.and_then(|s| chrono::NaiveDate::parse_from_str(&s[..s.len().min(10)], "%Y-%m-%d").ok())
 }
 
 fn load_player(conn: &Connection, player_id: PlayerId) -> NaratamaResult<Option<Player>> {

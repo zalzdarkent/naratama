@@ -13,8 +13,10 @@ use naratama_engine::{
     InboxMessageRow, InboxService, InitialSquadPreset, MatchReplay, MatchStatistics,
     MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine, NewsItemRow,
     OfferResponseAction, OffseasonService, PlayerDetail, PreseasonCamp, PreparedFixture,
-    ReadService, SeasonAwardRow, SeasonGenerator, SquadTacticsService, StadiumArchitecture,
-    TeamDetail, TrainingFocus, TransferMarketService,
+    AcademyProspect, ManagerOfferRow, ManagerOfferService, OfferInfo, ReadService,
+    ScoutInfo, ScoutReportInfo, ScoutingService, SeasonAwardRow, SeasonGenerator,
+    SquadTacticsService,
+    StadiumArchitecture, TeamDetail, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
     ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchId, MatchStatus, Money,
@@ -711,6 +713,29 @@ fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutc
     run_matchday(active, None)
 }
 
+/// Game date stored in `local_game_state` (never the OS clock, per ADR-002).
+fn today(conn: &Connection, season_id: SeasonId) -> Result<NaiveDate, String> {
+    let raw: Option<String> = conn
+        .query_row(
+            "SELECT current_date FROM local_game_state WHERE id = 1",
+            [],
+            |r| r.get(0),
+        )
+        .optional()
+        .map_err(|e| e.to_string())?;
+    match raw.and_then(|d| NaiveDate::parse_from_str(&d[..d.len().min(10)], "%Y-%m-%d").ok()) {
+        Some(date) => Ok(date),
+        None => {
+            let (_, end_year) = SeasonRepo::new(conn)
+                .season_years(season_id)
+                .map_err(|e| e.to_string())?
+                .unwrap_or((2025, 2026));
+            NaiveDate::from_ymd_opt(end_year, 6, 30)
+                .ok_or_else(|| "Invalid fallback date".to_string())
+        }
+    }
+}
+
 fn live_snapshot(session: &LiveSession) -> LiveMatchSnapshot {
     let (home_goals, away_goals) = session.match_state.score();
     LiveMatchSnapshot {
@@ -1056,6 +1081,226 @@ fn get_international_podiums(state: State<'_, AppState>) -> Result<Vec<HonourRow
 }
 
 #[tauri::command]
+fn get_scouts(state: State<'_, AppState>) -> Result<Vec<ScoutInfo>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::scouts(&active.conn, active.user_team_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn hire_scout(
+    state: State<'_, AppState>,
+    name: String,
+    stars: i32,
+    region: String,
+) -> Result<i64, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    ScoutingService::hire_scout(
+        &mut active.conn,
+        active.season_id,
+        active.user_team_id,
+        &name,
+        stars,
+        &region,
+        date,
+    )
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn deploy_scout(
+    state: State<'_, AppState>,
+    scout_id: i64,
+    region: String,
+) -> Result<String, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    let ret = ScoutingService::deploy_scout(&active.conn, scout_id, &region, date)
+        .map_err(|e| e.to_string())?;
+    Ok(ret.format("%Y-%m-%d").to_string())
+}
+
+#[tauri::command]
+fn get_scout_reports(state: State<'_, AppState>) -> Result<Vec<ScoutReportInfo>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::scout_reports(&active.conn, active.user_team_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn collect_scout_reports(state: State<'_, AppState>) -> Result<usize, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    let reports = ScoutingService::collect_due_reports(
+        &mut active.conn,
+        active.user_team_id,
+        date,
+        &mut active.rng,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(reports.len())
+}
+
+#[tauri::command]
+fn sign_scout_report(state: State<'_, AppState>, report_id: i64) -> Result<(), String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let report = ReadService::scout_report_row(&active.conn, report_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Scout report not found".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    ScoutingService::sign_wonderkid(
+        &mut active.conn,
+        active.season_id,
+        &report,
+        date,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_academy_prospects(state: State<'_, AppState>) -> Result<Vec<AcademyProspect>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::academy_prospects(&active.conn, active.user_team_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn sign_academy_prospect(state: State<'_, AppState>, prospect_id: i64) -> Result<(), String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let prospect = ReadService::youth_prospect_row(&active.conn, prospect_id)
+        .map_err(|e| e.to_string())?
+        .ok_or_else(|| "Academy prospect not found".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    SquadTacticsService::sign_academy_prospect(
+        &mut active.conn,
+        active.season_id,
+        &prospect,
+        date,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_incoming_offers(state: State<'_, AppState>) -> Result<Vec<OfferInfo>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::incoming_offers(&active.conn, active.user_team_id).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn respond_transfer_offer(
+    state: State<'_, AppState>,
+    offer_id: i64,
+    accept: bool,
+) -> Result<String, String> {
+    let mut guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_mut()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let date = today(&active.conn, active.season_id)?;
+    let action = if accept {
+        OfferResponseAction::Accept
+    } else {
+        OfferResponseAction::Reject
+    };
+    let outcome = TransferMarketService::respond_to_offer(
+        &mut active.conn,
+        active.season_id,
+        offer_id,
+        action,
+        date,
+    )
+    .map_err(|e| e.to_string())?;
+    Ok(outcome.message)
+}
+
+#[tauri::command]
+fn get_manager_offer(state: State<'_, AppState>) -> Result<Option<ManagerOfferRow>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ReadService::pending_manager_offer(&active.conn).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn respond_manager_offer(
+    state: State<'_, AppState>,
+    offer_id: i64,
+    accept: bool,
+) -> Result<(), String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    ManagerOfferService::respond_to_offer(&active.conn, offer_id, accept)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
         .active
@@ -1235,6 +1480,8 @@ fn make_transfer_offer(
     player_id: i64,
     seller_team_id: i64,
     offer_amount: Money,
+    is_loan: Option<bool>,
+    loan_seasons: Option<i32>,
 ) -> Result<String, String> {
     let mut guard = state
         .active
@@ -1274,8 +1521,8 @@ fn make_transfer_offer(
         TeamId(seller_team_id),
         active.user_team_id,
         offer_amount,
-        false,
-        1,
+        is_loan.unwrap_or(false),
+        loan_seasons.unwrap_or(1).clamp(1, 3),
         snap.current_date,
     )
     .map_err(|e| e.to_string())?;
@@ -1397,13 +1644,47 @@ fn offseason_advance(
             .map_err(|e| e.to_string())?;
         }
         "start_next_season" => {
+            // An accepted managerial offer re-anchors the career to the new club for the new season.
+            let accepted = ManagerOfferService::accepted_move(&active.conn)
+                .map_err(|e| e.to_string())?;
+            let target_team = accepted
+                .as_ref()
+                .map_or(active.user_team_id, |m| m.team_id);
             let plan = OffseasonService::start_next_season(
                 &mut active.conn,
                 &season,
-                active.user_team_id,
+                target_team,
                 &mut active.rng,
             )
             .map_err(|e| e.to_string())?;
+            if let Some(mv) = accepted {
+                if let Ok(Some(club)) = ReferenceRepo::new(&active.conn).team_by_id(mv.team_id) {
+                    active
+                        .conn
+                        .execute(
+                            "INSERT INTO career_history (team_id, season_id, country_id)
+                             VALUES (?1, ?2, ?3)",
+                            params![mv.team_id.0, plan.season.season_id.0, club.country_id.0],
+                        )
+                        .map_err(|e| e.to_string())?;
+                    ManagerOfferService::complete_accepted_move(&active.conn, mv.offer_id)
+                        .map_err(|e| e.to_string())?;
+                    let _ = ClubRepo::insert_message(
+                        &active.conn,
+                        &format!("Welcome to {}", club.name),
+                        &format!(
+                            "You are now the manager of {} for {} season(s). Objective: {}.",
+                            club.name, mv.contract_years, mv.target
+                        ),
+                        NaiveDate::from_ymd_opt(plan.season.start_year, 7, 1)
+                            .unwrap_or(NaiveDate::MIN),
+                        &club.name,
+                        Some(mv.team_id),
+                        None,
+                    );
+                    active.user_team_id = mv.team_id;
+                }
+            }
             active.season_id = plan.season.season_id;
             active.league_tournament_id = plan.league_tournament_id;
         }
@@ -1528,6 +1809,18 @@ pub fn run() {
             get_player_detail,
             get_tactical_dossier,
             get_international_podiums,
+            get_scouts,
+            hire_scout,
+            deploy_scout,
+            get_scout_reports,
+            collect_scout_reports,
+            sign_scout_report,
+            get_academy_prospects,
+            sign_academy_prospect,
+            get_incoming_offers,
+            respond_transfer_offer,
+            get_manager_offer,
+            respond_manager_offer,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

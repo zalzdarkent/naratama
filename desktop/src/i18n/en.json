@@ -55,7 +55,8 @@
     "clubHub": "Club Hub",
     "inbox": "Inbox",
     "news": "World News",
-    "history": "History & Honours"
+    "history": "History & Honours",
+    "scouting": "Scouting & Academy"
   },
   "topbar": {
     "cash": "Club Cash",
@@ -103,7 +104,13 @@
     "search": "Search",
     "club": "Club",
     "makeOffer": "Make Offer",
-    "offerSent": "Offer result"
+    "offerSent": "Offer result",
+    "loan": "Loan",
+    "seasons": "season(s)",
+    "incoming": "Incoming Offers for Your Players",
+    "noIncoming": "No incoming offers.",
+    "accept": "Accept",
+    "reject": "Reject"
   },
   "clubHub": {
     "facilities": "Club Facilities",
@@ -249,5 +256,38 @@
     "vulnerabilities": "Vulnerabilities",
     "counterTactics": "Counter Tactics",
     "short": "Opponent Analysis"
+  },
+  "scouting": {
+    "network": "Scouting Network",
+    "hire": "Hire Scout",
+    "hired": "Scout hired.",
+    "noScouts": "No scouts hired.",
+    "back": "back",
+    "deployed": "Scout deployed.",
+    "collect": "Collect Reports",
+    "collected": "Reports collected.",
+    "reports": "Scouting Reports",
+    "noReports": "No reports yet.",
+    "sign": "Sign",
+    "signed": "Player signed.",
+    "academy": "Club Academy",
+    "noProspects": "No academy players waiting.",
+    "promote": "Promote",
+    "promoted": "Academy player promoted.",
+    "regions": {
+      "europe": "Europe",
+      "south_america": "South America",
+      "africa": "Africa",
+      "asia": "Asia",
+      "north_america": "North America"
+    }
+  },
+  "manager": {
+    "title": "Managerial Offer",
+    "years": "year contract",
+    "target": "Objective",
+    "accept": "Accept Offer",
+    "decline": "Decline",
+    "accepted": "Offer accepted. New club takes over next season."
   }
 }
