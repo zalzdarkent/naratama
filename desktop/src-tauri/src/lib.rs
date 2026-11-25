@@ -42,6 +42,8 @@ pub struct LiveSession {
     pub match_state: LiveMatch,
     pub home_name: String,
     pub away_name: String,
+    pub home_logo: Option<String>,
+    pub away_logo: Option<String>,
     pub home_team_id: TeamId,
     pub away_team_id: TeamId,
 }
@@ -67,6 +69,8 @@ pub struct LiveMatchSnapshot {
     pub away_team_id: i64,
     pub home_name: String,
     pub away_name: String,
+    pub home_logo: Option<String>,
+    pub away_logo: Option<String>,
     pub home_goals: i32,
     pub away_goals: i32,
     pub on_pitch: Vec<Player>,
@@ -832,6 +836,8 @@ fn live_snapshot(session: &LiveSession) -> LiveMatchSnapshot {
         away_team_id: session.away_team_id.0,
         home_name: session.home_name.clone(),
         away_name: session.away_name.clone(),
+        home_logo: session.home_logo.clone(),
+        away_logo: session.away_logo.clone(),
         home_goals,
         away_goals,
         on_pitch: session.match_state.on_pitch(session.user_side),
@@ -890,14 +896,18 @@ fn start_live_match(state: State<'_, AppState>) -> Result<Option<LiveMatchSnapsh
         MatchSide::Away
     };
     let ref_repo = ReferenceRepo::new(&active.conn);
-    let home_name = ref_repo
+    let home_team = ref_repo
         .team_by_id(fixture.home_team_id)
-        .map_err(|e| e.to_string())?
-        .map_or_else(|| format!("Club #{}", fixture.home_team_id.0), |t| t.name);
-    let away_name = ref_repo
+        .map_err(|e| e.to_string())?;
+    let away_team = ref_repo
         .team_by_id(fixture.away_team_id)
-        .map_err(|e| e.to_string())?
-        .map_or_else(|| format!("Club #{}", fixture.away_team_id.0), |t| t.name);
+        .map_err(|e| e.to_string())?;
+    let home_name = home_team
+        .as_ref()
+        .map_or_else(|| format!("Club #{}", fixture.home_team_id.0), |t| t.name.clone());
+    let away_name = away_team
+        .as_ref()
+        .map_or_else(|| format!("Club #{}", fixture.away_team_id.0), |t| t.name.clone());
     let session = LiveSession {
         match_id: fixture.match_id.0,
         date,
@@ -905,6 +915,8 @@ fn start_live_match(state: State<'_, AppState>) -> Result<Option<LiveMatchSnapsh
         match_state: LiveMatch::from_input(&input, true, &banned),
         home_name,
         away_name,
+        home_logo: home_team.and_then(|t| t.logo_base64),
+        away_logo: away_team.and_then(|t| t.logo_base64),
         home_team_id: fixture.home_team_id,
         away_team_id: fixture.away_team_id,
     };

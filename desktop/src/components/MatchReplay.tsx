@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { MatchEventDto, MatchReplayDto } from '../api/bridge';
+import { logoSrc, MatchEventDto, MatchReplayDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface MatchReplayProps {
@@ -21,6 +21,9 @@ const SHOWN = new Set([
   'red_card',
   'injury',
   'var_goal_disallowed',
+  'var_check',
+  'save',
+  'assist',
   'shootout_kick',
 ]);
 
@@ -83,6 +86,12 @@ export function MatchReplay({ locale, userTeamId, replay, onClose }: MatchReplay
         return `✚ ${t.match.injury}`;
       case 'var_goal_disallowed':
         return `📺 ${t.match.varDisallowed}`;
+      case 'var_check':
+        return `📺 ${t.match.varCheck}`;
+      case 'save':
+        return `🧤 ${t.match.save}`;
+      case 'assist':
+        return `🅰 ${t.match.assist}`;
       default:
         return `⚽ ${t.match.shootout}`;
     }
@@ -99,8 +108,22 @@ export function MatchReplay({ locale, userTeamId, replay, onClose }: MatchReplay
             <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }} className="tabular">
               {replay.date} · {t.match.title}
             </div>
-            <div style={{ fontSize: 20, fontWeight: 800, marginTop: 2 }} className="tabular">
-              {replay.home_name} {liveScore.home} - {liveScore.away} {replay.away_name}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+              {logoSrc(replay.home_logo) && (
+                <img src={logoSrc(replay.home_logo) ?? ''} alt="" style={{ width: 32, height: 32 }} />
+              )}
+              <div style={{ fontSize: 18, fontWeight: 800 }} className="tabular">
+                {replay.home_name}
+              </div>
+              <div style={{ fontSize: 22, fontWeight: 900 }} className="tabular">
+                {liveScore.home} - {liveScore.away}
+              </div>
+              <div style={{ fontSize: 18, fontWeight: 800 }} className="tabular">
+                {replay.away_name}
+              </div>
+              {logoSrc(replay.away_logo) && (
+                <img src={logoSrc(replay.away_logo) ?? ''} alt="" style={{ width: 32, height: 32 }} />
+              )}
             </div>
             {minute >= lastMinute &&
               replay.penalty_home_goals !== null &&

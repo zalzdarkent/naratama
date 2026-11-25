@@ -34,8 +34,14 @@ pub struct MatchdayOutcome {
     pub match_id: MatchId,
     pub home_team_id: TeamId,
     pub away_team_id: TeamId,
+    pub home_name: String,
+    pub away_name: String,
+    pub home_logo: Option<String>,
+    pub away_logo: Option<String>,
     pub home_goals: i32,
     pub away_goals: i32,
+    pub penalty_home_goals: Option<i32>,
+    pub penalty_away_goals: Option<i32>,
     pub winner_id: Option<TeamId>,
 }
 
@@ -458,12 +464,25 @@ impl MatchdayService {
                 FinanceRepo::record_batch(conn, &fin_entries)?;
             }
 
+            let name_of = |team_id: TeamId| {
+                teams_map
+                    .get(&team_id)
+                    .map_or_else(|| format!("Club #{}", team_id.0), |t| t.name.clone())
+            };
+            let logo_of =
+                |team_id: TeamId| teams_map.get(&team_id).and_then(|t| t.logo_base64.clone());
             outcomes.push(MatchdayOutcome {
                 match_id: fixture.match_id,
                 home_team_id: fixture.home_team_id,
                 away_team_id: fixture.away_team_id,
+                home_name: name_of(fixture.home_team_id),
+                away_name: name_of(fixture.away_team_id),
+                home_logo: logo_of(fixture.home_team_id),
+                away_logo: logo_of(fixture.away_team_id),
                 home_goals: sim.home_goals,
                 away_goals: sim.away_goals,
+                penalty_home_goals: pen_home,
+                penalty_away_goals: pen_away,
                 winner_id,
             });
         }

@@ -120,7 +120,7 @@ export function MatchStatsModal({
           </div>
           <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: 16, marginTop: 4 }}>
             <span
-              style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer' }}
+              style={{ fontSize: 18, fontWeight: 800, cursor: 'pointer', display: 'inline-flex', gap: 6, alignItems: 'center' }}
               onClick={() => onOpenTeam(stats.home_team_id)}
             >
               {stats.home_name}

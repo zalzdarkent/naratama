@@ -27,6 +27,8 @@ pub struct DashboardSnapshot {
     pub fan_mood: i32,
     pub unread_inbox: i64,
     pub next_match: Option<FixtureMatch>,
+    /// Resolved opponent of the next fixture (includes crest, so the UI never shows `Club #id`).
+    pub next_opponent: Option<Team>,
     pub standings_preview: Vec<StandingRow>,
     pub recent_news: Vec<NewsItemRow>,
     pub recent_inbox: Vec<InboxMessageRow>,
@@ -43,6 +45,8 @@ pub struct MatchReplay {
     pub away_team_id: TeamId,
     pub home_name: String,
     pub away_name: String,
+    pub home_logo: Option<String>,
+    pub away_logo: Option<String>,
     pub home_goals: i32,
     pub away_goals: i32,
     pub penalty_home_goals: Option<i32>,
@@ -120,6 +124,15 @@ impl DesktopFacade {
             }
         }
         let standings_preview = compute_standings(&clubs, &team_names, &league_matches);
+        let next_match = find_next_club_match(conn, season_id, user_team_id)?;
+        let next_opponent = next_match.as_ref().and_then(|m| {
+            let opponent_id = if m.home_team_id == user_team_id {
+                m.away_team_id
+            } else {
+                m.home_team_id
+            };
+            ref_repo.team_by_id(opponent_id).ok().flatten()
+        });
         let fan_mood = ClubLifeNews::fan_mood(conn, season_id, user_team_id, 6)?;
         let unread_inbox = InboxService::unread_count(conn)?;
         let recent_news = NewsEngine::feed(conn, None, 8)?;
@@ -146,6 +159,7 @@ impl DesktopFacade {
             fan_mood,
             unread_inbox,
             next_match,
+            next_opponent,
             standings_preview,
             recent_news,
             recent_inbox,
@@ -216,18 +230,24 @@ impl DesktopFacade {
             .filter_map(|raw| serde_json::from_str::<MatchEvent>(&raw).ok())
             .collect();
 
-        let names = |team_id: i64| -> NaratamaResult<String> {
-            Ok(ReferenceRepo::new(conn)
-                .team_by_id(TeamId(team_id))?
-                .map_or_else(|| format!("Club #{team_id}"), |t| t.name))
+        let team_of = |team_id: i64| -> NaratamaResult<Option<naratama_model::Team>> {
+            ReferenceRepo::new(conn).team_by_id(TeamId(team_id))
+        };
+        let name_of = |team_id: i64| -> NaratamaResult<String> {
+            Ok(team_of(team_id)?.map_or_else(|| format!("Club #{team_id}"), |t| t.name))
+        };
+        let logo_of = |team_id: i64| -> NaratamaResult<Option<String>> {
+            Ok(team_of(team_id)?.and_then(|t| t.logo_base64))
         };
         Ok(Some(MatchReplay {
             match_id,
             date: date.unwrap_or_default(),
             home_team_id: TeamId(home_id),
             away_team_id: TeamId(away_id),
-            home_name: names(home_id)?,
-            away_name: names(away_id)?,
+            home_name: name_of(home_id)?,
+            away_name: name_of(away_id)?,
+            home_logo: logo_of(home_id)?,
+            away_logo: logo_of(away_id)?,
             home_goals,
             away_goals,
             penalty_home_goals,

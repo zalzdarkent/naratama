@@ -98,7 +98,8 @@
     "simulateHint": "Press Space or click the button to simulate the next matchday.",
     "seasonDone": "All fixtures for this season are complete. Open the Offseason Wizard to advance.",
     "matchResults": "Matchday Results",
-    "close": "Close"
+    "close": "Close",
+    "viewAll": "View All"
   },
   "squad": {
     "tacticsBoard": "2D Tactics Board",
@@ -222,9 +223,12 @@
     "redCard": "Red Card",
     "injury": "Injury",
     "varDisallowed": "VAR: Goal Disallowed",
-    "shootout": "Penalty Shootout",
+    "shootout": "Penalty",
     "penalties": "Penalties",
-    "noEvents": "No key incidents yet."
+    "noEvents": "No key incidents yet.",
+    "varCheck": "VAR Check",
+    "save": "Save",
+    "assist": "Assist"
   },
   "live": {
     "title": "Live Match",
@@ -239,7 +243,8 @@
     "defensive": "Defensive",
     "balanced": "Balanced",
     "attacking": "Attacking",
-    "commit": "Commit & Continue"
+    "commit": "Commit & Continue",
+    "shootout": "Shootout kick"
   },
   "competition": {
     "standings": "Standings",

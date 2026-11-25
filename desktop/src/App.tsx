@@ -467,14 +467,14 @@ export function App() {
     }
   };
 
-  const nextOppId =
-    snapshot.next_match &&
-    (snapshot.next_match.home_team_id === snapshot.club.team_id
-      ? snapshot.next_match.away_team_id
-      : snapshot.next_match.home_team_id);
-  const nextOppName = nextOppId
-    ? teamNameMap.get(nextOppId) ?? `${t.common.clubFallback} #${nextOppId}`
-    : null;
+  const nextOppId = snapshot.next_opponent?.team_id ??
+    (snapshot.next_match
+      ? snapshot.next_match.home_team_id === snapshot.club.team_id
+        ? snapshot.next_match.away_team_id
+        : snapshot.next_match.home_team_id
+      : null);
+  const nextOppName = snapshot.next_opponent?.name ??
+    (nextOppId ? teamNameMap.get(nextOppId) ?? `${t.common.clubFallback} #${nextOppId}` : null);
   const isSeasonComplete = snapshot.next_match === null || snapshot.offseason !== null;
 
   return (
@@ -580,8 +580,24 @@ export function App() {
               <h3 className="card-title">{t.dashboard.nextFixture}</h3>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
-                  <div style={{ fontSize: 18, fontWeight: 800 }}>
-                    {nextOppName ? `${snapshot.club.name} vs ${nextOppName}` : t.offseason.title}
+                  <div style={{ display: 'flex', gap: 10, alignItems: 'center', fontSize: 18, fontWeight: 800 }}>
+                    {logoSrc(snapshot.club.logo_base64) && (
+                      <img src={logoSrc(snapshot.club.logo_base64) ?? ''} alt="" style={{ width: 26, height: 26 }} />
+                    )}
+                    {nextOppName ? snapshot.club.name : t.offseason.title}
+                    {nextOppName && <span style={{ color: 'var(--text-dim)' }}>vs</span>}
+                    {nextOppName && (
+                      <>
+                        {logoSrc(snapshot.next_opponent?.logo_base64) && (
+                          <img
+                            src={logoSrc(snapshot.next_opponent?.logo_base64) ?? ''}
+                            alt=""
+                            style={{ width: 26, height: 26 }}
+                          />
+                        )}
+                        {nextOppName}
+                      </>
+                    )}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
                     {isSeasonComplete ? t.dashboard.seasonDone : t.dashboard.simulateHint}
@@ -635,7 +651,15 @@ export function App() {
 
             <div className="grid-2">
               <section className="card">
-                <h3 className="card-title">{t.dashboard.leagueStandings}</h3>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h3 className="card-title">
+                    {t.dashboard.leagueStandings} ({Math.min(10, snapshot.standings_preview.length)}/
+                    {snapshot.standings_preview.length})
+                  </h3>
+                  <button className="btn" style={{ fontSize: 11.5 }} onClick={() => setRoute('competitions')}>
+                    {t.dashboard.viewAll}
+                  </button>
+                </div>
                 <table className="data-table tabular">
                   <thead>
                     <tr>
@@ -1495,25 +1519,57 @@ export function App() {
             </div>
             <table className="data-table tabular">
               <tbody>
-                {matchOutcomes.slice(0, 15).map((o) => {
-                  const isUser =
+                {matchOutcomes.slice(0, 40).map((o) => {
+                  const mine =
                     o.home_team_id === snapshot.club.team_id ||
                     o.away_team_id === snapshot.club.team_id;
+                  const hasPens =
+                    (o.penalty_home_goals ?? 0) > 0 || (o.penalty_away_goals ?? 0) > 0;
                   return (
                     <tr
                       key={o.match_id}
-                      className={isUser ? 'user-row' : ''}
+                      className={mine ? 'user-row' : ''}
                       style={{ cursor: 'pointer' }}
                       onClick={() => openMatch(o.match_id)}
                     >
-                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        {teamNameMap.get(o.home_team_id) ?? `${t.common.clubFallback} #${o.home_team_id}`}
+                      <td style={{ textAlign: 'right', fontWeight: mine ? 700 : 500 }}>
+                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          {o.home_name}
+                          {logoSrc(o.home_logo) && (
+                            <img
+                              src={logoSrc(o.home_logo) ?? ''}
+                              alt=""
+                              style={{ width: 18, height: 18 }}
+                            />
+                          )}
+                        </span>
                       </td>
-                      <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--accent-light)' }}>
+                      <td
+                        style={{
+                          textAlign: 'center',
+                          fontWeight: 800,
+                          color: 'var(--accent-light)',
+                          whiteSpace: 'nowrap',
+                        }}
+                      >
                         {o.home_goals} - {o.away_goals}
+                        {hasPens && (
+                          <div style={{ fontSize: 10, color: 'var(--warn)', fontWeight: 600 }}>
+                            {t.match.penalties} {o.penalty_home_goals}-{o.penalty_away_goals}
+                          </div>
+                        )}
                       </td>
-                      <td style={{ fontWeight: 600 }}>
-                        {teamNameMap.get(o.away_team_id) ?? `${t.common.clubFallback} #${o.away_team_id}`}
+                      <td style={{ fontWeight: mine ? 700 : 500 }}>
+                        <span style={{ display: 'inline-flex', gap: 6, alignItems: 'center' }}>
+                          {logoSrc(o.away_logo) && (
+                            <img
+                              src={logoSrc(o.away_logo) ?? ''}
+                              alt=""
+                              style={{ width: 18, height: 18 }}
+                            />
+                          )}
+                          {o.away_name}
+                        </span>
                       </td>
                     </tr>
                   );

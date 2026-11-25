@@ -120,6 +120,7 @@ export interface DashboardSnapshotDto {
   fan_mood: number;
   unread_inbox: number;
   next_match: FixtureMatchDto | null;
+  next_opponent: TeamDto | null;
   standings_preview: StandingRowDto[];
   recent_news: NewsItemDto[];
   recent_inbox: InboxMessageDto[];
@@ -136,8 +137,14 @@ export interface MatchdayOutcomeDto {
   match_id: number;
   home_team_id: number;
   away_team_id: number;
+  home_name: string;
+  away_name: string;
+  home_logo: string | null;
+  away_logo: string | null;
   home_goals: number;
   away_goals: number;
+  penalty_home_goals: number | null;
+  penalty_away_goals: number | null;
   winner_id: number | null;
 }
 
@@ -157,6 +164,8 @@ export interface LiveMatchSnapshotDto {
   away_team_id: number;
   home_name: string;
   away_name: string;
+  home_logo: string | null;
+  away_logo: string | null;
   home_goals: number;
   away_goals: number;
   on_pitch: PlayerDto[];
@@ -173,6 +182,8 @@ export interface MatchReplayDto {
   away_team_id: number;
   home_name: string;
   away_name: string;
+  home_logo: string | null;
+  away_logo: string | null;
   home_goals: number;
   away_goals: number;
   penalty_home_goals: number | null;
@@ -643,6 +654,15 @@ const PREVIEW_SNAPSHOT: DashboardSnapshotDto = {
     home_goals: null,
     away_goals: null,
   },
+  next_opponent: {
+    team_id: 102,
+    name: 'Garuda Nusantara',
+    abbreviation: 'GRN',
+    country_id: 94,
+    power: 74,
+    budget: 12_000_000,
+    division: 1,
+  },
   standings_preview: [
     { team_id: 101, team_name: 'Naratama United FC', played: 2, wins: 2, draws: 0, losses: 0, goals_for: 5, goals_against: 1, points: 6 },
     { team_id: 102, team_name: 'Garuda Nusantara', played: 2, wins: 1, draws: 1, losses: 0, goals_for: 4, goals_against: 2, points: 4 },
@@ -835,7 +855,20 @@ export const desktopApi = {
   async simulateNextMatchday(): Promise<MatchdayOutcomeDto[]> {
     return (
       (await tauriInvoke<MatchdayOutcomeDto[]>('simulate_next_matchday')) ?? [
-        { match_id: 1001, home_team_id: 101, away_team_id: 102, home_goals: 2, away_goals: 1, winner_id: 101 },
+        {
+          match_id: 1001,
+          home_team_id: 101,
+          away_team_id: 102,
+          home_name: 'Naratama FC',
+          away_name: 'Gelanggang United',
+          home_logo: null,
+          away_logo: null,
+          home_goals: 2,
+          away_goals: 1,
+          penalty_home_goals: null,
+          penalty_away_goals: null,
+          winner_id: 101,
+        },
       ]
     );
   },

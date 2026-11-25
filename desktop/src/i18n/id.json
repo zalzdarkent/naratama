@@ -98,7 +98,8 @@
     "simulateHint": "Tekan Spasi atau klik tombol untuk simulasi matchday.",
     "seasonDone": "Semua jadwal musim ini selesai. Buka Wizard Offseason untuk lanjut musim berikutnya.",
     "matchResults": "Hasil Matchday",
-    "close": "Tutup"
+    "close": "Tutup",
+    "viewAll": "Lihat Semua"
   },
   "squad": {
     "tacticsBoard": "Papan Taktik 2D",
@@ -224,7 +225,10 @@
     "varDisallowed": "VAR: Gol Dibatalkan",
     "shootout": "Adu Penalti",
     "penalties": "Adu Penalti",
-    "noEvents": "Belum ada kejadian penting."
+    "noEvents": "Belum ada kejadian penting.",
+    "varCheck": "Pemeriksaan VAR",
+    "save": "Penyelamatan",
+    "assist": "Assist"
   },
   "live": {
     "title": "Laga Langsung",
@@ -239,7 +243,8 @@
     "defensive": "Bertahan",
     "balanced": "Seimbang",
     "attacking": "Menyerang",
-    "commit": "Simpan & Lanjut"
+    "commit": "Simpan & Lanjut",
+    "shootout": "Adu Penalti"
   },
   "competition": {
     "standings": "Klasemen",

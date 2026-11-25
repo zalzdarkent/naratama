@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { LiveMatchSnapshotDto, MatchEventDto, PlayerDto } from '../api/bridge';
+import { LiveMatchSnapshotDto, logoSrc, MatchEventDto, PlayerDto } from '../api/bridge';
 import { getDictionary, Locale } from '../i18n';
 
 interface LiveMatchPanelProps {
@@ -69,6 +69,14 @@ export function LiveMatchPanel({
         return `⇄ ${t.live.substitution}`;
       case 'var_goal_disallowed':
         return `📺 ${t.match.varDisallowed}`;
+      case 'var_check':
+        return `📺 ${t.match.varCheck}`;
+      case 'save':
+        return `🧤 ${t.match.save}`;
+      case 'assist':
+        return `🅰 ${t.match.assist}`;
+      case 'shootout_kick':
+        return `⚽ ${t.live.shootout}`;
       default:
         return '';
     }
@@ -76,8 +84,23 @@ export function LiveMatchPanel({
 
   const highlights = snapshot.events
     .filter((e) => label(e) !== '')
-    .slice(-6)
+    .slice(-10)
     .reverse();
+  const sideLabel = (side: string) =>
+    normalize(side) === 'home' ? snapshot.home_name : snapshot.away_name;
+
+  const crest = (raw: string | null, name: string) =>
+    logoSrc(raw) ? (
+      <img
+        src={logoSrc(raw) ?? ''}
+        alt={name}
+        style={{ width: 34, height: 34, borderRadius: 7, background: '#0b1424', objectFit: 'contain' }}
+      />
+    ) : (
+      <div className="crest-pill" style={{ width: 34, height: 34, fontSize: 11 }}>
+        {name.slice(0, 3).toUpperCase()}
+      </div>
+    );
 
   const addPending = () => {
     if (!outId || !inId) return;
@@ -106,8 +129,18 @@ export function LiveMatchPanel({
             <div style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>
               {t.live.title} · {t.match.minute} {clock}'
             </div>
-            <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }} className="tabular">
-              {snapshot.home_name} {snapshot.home_goals} - {snapshot.away_goals} {snapshot.away_name}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginTop: 4 }}>
+              {crest(snapshot.home_logo, snapshot.home_name)}
+              <div style={{ fontSize: 20, fontWeight: 800 }} className="tabular">
+                {snapshot.home_name}
+              </div>
+              <div style={{ fontSize: 24, fontWeight: 900 }} className="tabular">
+                {snapshot.home_goals} - {snapshot.away_goals}
+              </div>
+              <div style={{ fontSize: 20, fontWeight: 800 }} className="tabular">
+                {snapshot.away_name}
+              </div>
+              {crest(snapshot.away_logo, snapshot.away_name)}
             </div>
             <div style={{ fontSize: 12, marginTop: 2, color: 'var(--accent-light)' }}>
               {snapshot.minute < 45
@@ -227,6 +260,12 @@ export function LiveMatchPanel({
               </span>
               <span style={{ fontWeight: 700, fontSize: 12.5 }}>{label(ev)}</span>
               <span style={{ fontSize: 12.5 }}>{ev.player_name ?? ''}</span>
+              {ev.detail && (
+                <span style={{ fontSize: 11.5, color: 'var(--text-dim)' }}>({ev.detail})</span>
+              )}
+              <span style={{ fontSize: 11.5, color: 'var(--text-dim)', marginLeft: 'auto' }}>
+                {sideLabel(ev.side)}
+              </span>
             </div>
           ))}
         </div>
