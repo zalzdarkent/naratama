@@ -1,4 +1,5 @@
 :root {
+  color-scheme: dark;
   --surface: #070d18;
   --surface-card: #0f1728;
   --surface-card-high: #162035;
@@ -129,8 +130,13 @@ body,
   transition: background 120ms ease, border-color 120ms ease;
 }
 
-.btn:hover {
+.btn:hover:not(:disabled) {
   border-color: var(--accent);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .btn-primary {
@@ -139,8 +145,50 @@ body,
   border-color: var(--accent-light);
 }
 
-.btn-primary:hover {
+.btn-primary:hover:not(:disabled) {
   filter: brightness(1.06);
+}
+
+.btn-danger {
+  border-color: rgba(239, 68, 68, 0.45);
+  color: #fca5a5;
+}
+
+.btn-danger:hover:not(:disabled) {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.16);
+}
+
+.input,
+.select {
+  background-color: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 7px 10px;
+  font-size: 13px;
+  outline: none;
+  color-scheme: dark;
+}
+
+.select {
+  -webkit-appearance: none;
+  appearance: none;
+  padding-right: 30px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2394a3b8' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 10px center;
+  cursor: pointer;
+}
+
+.select option {
+  background-color: var(--surface-card);
+  color: var(--text);
+}
+
+.input:focus,
+.select:focus {
+  border-color: var(--accent);
 }
 
 .sidebar {
@@ -258,6 +306,10 @@ body,
   background: rgba(229, 169, 60, 0.12);
 }
 
+.data-table tbody tr.swap-selected {
+  background: rgba(59, 130, 246, 0.22);
+}
+
 .pos-badge {
   display: inline-block;
   min-width: 34px;
@@ -303,7 +355,7 @@ body,
 }
 
 .pitch-node {
-  background: rgba(7, 13, 24, 0.86);
+  background: rgba(7, 13, 24, 0.88);
   border: 1px solid var(--accent);
   border-radius: 8px;
   padding: 5px 8px;
@@ -314,6 +366,11 @@ body,
 
 .pitch-node:hover {
   border-color: var(--gala-gold);
+}
+
+.pitch-node.swap-selected {
+  border-color: var(--royal-blue-light);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
 }
 
 .fitness-bar {
@@ -338,3 +395,96 @@ body,
   border-bottom: none;
 }
 
+.news-item.unread {
+  border-left: 3px solid var(--accent);
+  padding-left: 10px;
+}
+
+/* Start Screen & Career Wizard */
+.start-screen {
+  min-height: 100vh;
+  background: radial-gradient(circle at top, #12213d 0%, var(--surface) 62%);
+  padding: 32px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+}
+
+.start-container {
+  width: 100%;
+  max-width: 960px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.slot-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(270px, 1fr));
+  gap: 14px;
+}
+
+.slot-card {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 146px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12.5px;
+  color: var(--text-dim);
+}
+
+/* Modals & Toast */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(4, 8, 16, 0.78);
+  display: grid;
+  place-items: center;
+  z-index: 50;
+  padding: 20px;
+}
+
+.modal-box {
+  background: var(--surface-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 20px;
+  width: 100%;
+  max-width: 620px;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.toast {
+  position: fixed;
+  bottom: 18px;
+  right: 18px;
+  background: var(--surface-card-high);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 13px;
+  z-index: 60;
+}

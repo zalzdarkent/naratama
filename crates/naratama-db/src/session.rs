@@ -87,6 +87,20 @@ impl SessionManager {
         Self::open_connection(&session_file)
     }
 
+    /// Checkpoints WAL and atomically copies the active `.session` DB into the committed slot file
+    /// without closing the live SQLite connection.
+    pub fn checkpoint_save_session(&self, slot: u8, conn: &Connection) -> NaratamaResult<()> {
+        let slot_file = self.slot_path(slot)?;
+        let session_file = self.session_path(slot)?;
+        conn.execute_batch("PRAGMA wal_checkpoint(TRUNCATE);")
+            .map_err(db_err)?;
+        let tmp_dest = PathBuf::from(format!("{}.tmp", slot_file.display()));
+        fs::copy(&session_file, &tmp_dest)?;
+        remove_sqlite_sidecars(&slot_file);
+        fs::rename(&tmp_dest, &slot_file)?;
+        Ok(())
+    }
+
     /// Ends a session: if `save` is true, checkpoints WAL and atomically replaces the slot DB.
     /// If `save` is false, discards `.session` so the committed slot DB remains untouched.
     pub fn finish_session(&self, slot: u8, conn: Connection, save: bool) -> NaratamaResult<()> {

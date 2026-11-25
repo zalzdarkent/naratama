@@ -1,6 +1,26 @@
 {
   "appTitle": "Naratama Gelanggang",
   "subtitle": "Football Manager Desktop",
+  "start": {
+    "tagline": "Simulasi Manajer Sepak Bola Lokal · Rust + SQLite",
+    "saveSlots": "Slot Penyimpanan Karier (5 Slot)",
+    "emptySlot": "Slot Kosong",
+    "load": "Muat Karier",
+    "newCareer": "Karier Baru",
+    "customClub": "Buat Klub Sendiri",
+    "delete": "Hapus",
+    "managerName": "Nama Manajer",
+    "selectCountry": "Pilih Negara",
+    "selectLeague": "Pilih Divisi / Liga",
+    "selectClub": "Pilih Klub",
+    "startNow": "Mulai Karier",
+    "back": "Kembali",
+    "clubName": "Nama Klub",
+    "abbr": "Singkatan (3 huruf)",
+    "stadiumName": "Nama Stadion",
+    "preset": "Preset Skuad Awal",
+    "budget": "Anggaran Awal ($)"
+  },
   "nav": {
     "dashboard": "Ringkasan",
     "squad": "Skuad & Taktik",
@@ -16,7 +36,10 @@
     "window": "Jendela Transfer",
     "fanMood": "Mood Fans",
     "save": "Simpan",
-    "playMatch": "Mainkan Matchday"
+    "menu": "Menu",
+    "playMatch": "Mainkan Matchday",
+    "offseason": "Masuk Offseason",
+    "savedToast": "Karier tersimpan ke slot."
   },
   "dashboard": {
     "nextFixture": "Pertandingan Berikutnya",
@@ -24,20 +47,54 @@
     "latestNews": "Berita Terkini",
     "recentInbox": "Pesan Terbaru",
     "payroll": "Gaji Mingguan",
-    "simulateHint": "Tekan Spasi atau klik tombol untuk simulasi matchday."
+    "simulateHint": "Tekan Spasi atau klik tombol untuk simulasi matchday.",
+    "seasonDone": "Semua jadwal musim ini selesai. Buka Wizard Offseason untuk lanjut musim berikutnya.",
+    "matchResults": "Hasil Matchday",
+    "close": "Tutup"
   },
   "squad": {
     "tacticsBoard": "Papan Taktik 2D",
     "roster": "Daftar Skuad",
     "train": "Latihan ($75K)",
     "autoXi": "Auto XI",
+    "saveTactics": "Simpan Taktik",
+    "swapHint": "Klik dua pemain (di lapangan atau tabel) untuk menukar posisi starter.",
     "position": "Pos",
     "player": "Pemain",
     "ovr": "OVR",
     "pot": "POT",
     "age": "Usia",
     "fitness": "Bugar",
-    "value": "Nilai Pasar"
+    "value": "Nilai Pasar",
+    "starter": "XI"
+  },
+  "market": {
+    "searchPlaceholder": "Cari nama pemain...",
+    "maxAge": "Maks Usia",
+    "search": "Cari",
+    "club": "Klub",
+    "makeOffer": "Tawar",
+    "offerSent": "Hasil tawaran"
+  },
+  "clubHub": {
+    "facilities": "Fasilitas Klub",
+    "trainingLevel": "Level Latihan",
+    "medicalLevel": "Level Medis",
+    "upgradeTraining": "Upgrade Latihan",
+    "staff": "Staf Pelatih & Medis",
+    "hireStaff": "Rekrut Staf",
+    "sponsors": "Sponsor Aktif",
+    "cashFlow": "Ringkasan Arus Kas Musim"
+  },
+  "offseason": {
+    "title": "Wizard Offseason Antar Musim",
+    "begin": "1. Evaluasi Musim",
+    "contracts": "2. Kontrak Habis",
+    "development": "3. Perkembangan Pemain",
+    "transfers": "4. Bursa Musim Panas",
+    "camp": "5. Pemusatan Latihan",
+    "board": "6. Target Direksi",
+    "startNext": "7. Mulai Musim Baru"
   },
   "inspector": {
     "title": "Inspektor Detail",
@@ -60,4 +117,3 @@
     "power": "OVR"
   }
 }
-

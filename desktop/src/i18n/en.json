@@ -1,6 +1,26 @@
 {
   "appTitle": "Naratama Gelanggang",
   "subtitle": "Football Manager Desktop",
+  "start": {
+    "tagline": "Offline Football Management · Rust + SQLite",
+    "saveSlots": "Career Save Slots (5 Slots)",
+    "emptySlot": "Empty Slot",
+    "load": "Load Career",
+    "newCareer": "New Career",
+    "customClub": "Create Custom Club",
+    "delete": "Delete",
+    "managerName": "Manager Name",
+    "selectCountry": "Select Country",
+    "selectLeague": "Select Division / League",
+    "selectClub": "Select Club",
+    "startNow": "Start Career",
+    "back": "Back",
+    "clubName": "Club Name",
+    "abbr": "Abbreviation (3 chars)",
+    "stadiumName": "Stadium Name",
+    "preset": "Starting Squad Preset",
+    "budget": "Starting Budget ($)"
+  },
   "nav": {
     "dashboard": "Dashboard",
     "squad": "Squad & Tactics",
@@ -16,7 +36,10 @@
     "window": "Transfer Window",
     "fanMood": "Fan Mood",
     "save": "Save",
-    "playMatch": "Play Matchday"
+    "menu": "Menu",
+    "playMatch": "Play Matchday",
+    "offseason": "Open Offseason",
+    "savedToast": "Career saved to slot."
   },
   "dashboard": {
     "nextFixture": "Next Fixture",
@@ -24,20 +47,54 @@
     "latestNews": "Latest Headlines",
     "recentInbox": "Recent Inbox",
     "payroll": "Weekly Payroll",
-    "simulateHint": "Press Space or click the button to simulate the next matchday."
+    "simulateHint": "Press Space or click the button to simulate the next matchday.",
+    "seasonDone": "All fixtures for this season are complete. Open the Offseason Wizard to advance.",
+    "matchResults": "Matchday Results",
+    "close": "Close"
   },
   "squad": {
     "tacticsBoard": "2D Tactics Board",
     "roster": "Squad Roster",
     "train": "Train ($75K)",
     "autoXi": "Auto XI",
+    "saveTactics": "Save Tactics",
+    "swapHint": "Click two players (on pitch or in roster) to swap starters.",
     "position": "Pos",
     "player": "Player",
     "ovr": "OVR",
     "pot": "POT",
     "age": "Age",
     "fitness": "Fit",
-    "value": "Market Value"
+    "value": "Market Value",
+    "starter": "XI"
+  },
+  "market": {
+    "searchPlaceholder": "Search player name...",
+    "maxAge": "Max Age",
+    "search": "Search",
+    "club": "Club",
+    "makeOffer": "Make Offer",
+    "offerSent": "Offer result"
+  },
+  "clubHub": {
+    "facilities": "Club Facilities",
+    "trainingLevel": "Training Level",
+    "medicalLevel": "Medical Level",
+    "upgradeTraining": "Upgrade Training",
+    "staff": "Coaching & Medical Staff",
+    "hireStaff": "Hire Staff",
+    "sponsors": "Active Sponsors",
+    "cashFlow": "Season Cash Flow Breakdown"
+  },
+  "offseason": {
+    "title": "End-of-Season Offseason Wizard",
+    "begin": "1. Season Summary",
+    "contracts": "2. Expiring Contracts",
+    "development": "3. Player Development",
+    "transfers": "4. Summer Window",
+    "camp": "5. Preseason Camp",
+    "board": "6. Board Ambition",
+    "startNext": "7. Start Next Season"
   },
   "inspector": {
     "title": "Detail Inspector",
@@ -60,4 +117,3 @@
     "power": "OVR"
   }
 }
-

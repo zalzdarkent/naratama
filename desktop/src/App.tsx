@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
+  ClubHubDto,
   CountryRankDto,
   DashboardSnapshotDto,
   desktopApi,
   formatMoney,
+  InboxMessageDto,
+  isTauriRuntime,
+  MarketListingDto,
+  MatchdayOutcomeDto,
+  NewsItemDto,
   PlayerDto,
   positionMeta,
 } from './api/bridge';
+import { OffseasonModal } from './components/OffseasonModal';
+import { StartScreen } from './components/StartScreen';
 import { getDictionary, Locale } from './i18n';
 
 type RouteKey =
@@ -19,48 +27,151 @@ type RouteKey =
   | 'inbox'
   | 'news';
 
+const FORMATIONS: Record<string, [number, number][]> = {
+  '4-4-2': [
+    [9, 11],
+    [5, 9],
+    [1, 5],
+    [0, 1],
+  ],
+  '4-3-3': [
+    [8, 11],
+    [5, 8],
+    [1, 5],
+    [0, 1],
+  ],
+  '3-5-2': [
+    [9, 11],
+    [4, 9],
+    [1, 4],
+    [0, 1],
+  ],
+  '4-2-3-1': [
+    [10, 11],
+    [7, 10],
+    [5, 7],
+    [1, 5],
+    [0, 1],
+  ],
+  '5-3-2': [
+    [9, 11],
+    [6, 9],
+    [1, 6],
+    [0, 1],
+  ],
+  '4-1-4-1': [
+    [10, 11],
+    [6, 10],
+    [5, 6],
+    [1, 5],
+    [0, 1],
+  ],
+};
+
 export function App() {
   const [locale, setLocale] = useState<Locale>('id');
+  const [inCareer, setInCareer] = useState<boolean>(() => !isTauriRuntime());
   const [route, setRoute] = useState<RouteKey>('dashboard');
   const [newsScope, setNewsScope] = useState<string>('all');
   const [snapshot, setSnapshot] = useState<DashboardSnapshotDto | null>(null);
   const [squad, setSquad] = useState<PlayerDto[]>([]);
+  const [formation, setFormation] = useState<string>('4-4-2');
+  const [starterIds, setStarterIds] = useState<number[]>([]);
+  const [swapPick, setSwapPick] = useState<number | null>(null);
   const [rankings, setRankings] = useState<CountryRankDto[]>([]);
+  const [clubHub, setClubHub] = useState<ClubHubDto | null>(null);
+  const [market, setMarket] = useState<MarketListingDto[]>([]);
+  const [marketSearch, setMarketSearch] = useState('');
+  const [marketMaxAge, setMarketMaxAge] = useState<number>(35);
+  const [newsFeed, setNewsFeed] = useState<NewsItemDto[]>([]);
+  const [inbox, setInbox] = useState<InboxMessageDto[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerDto | null>(null);
+  const [matchOutcomes, setMatchOutcomes] = useState<MatchdayOutcomeDto[] | null>(null);
+  const [showOffseason, setShowOffseason] = useState(false);
+  const [staffRole, setStaffRole] = useState('head_physio');
+  const [staffName, setStaffName] = useState('Coach Pratama');
+  const [staffStars, setStaffStars] = useState(3);
   const [busy, setBusy] = useState(false);
+  const [toast, setToast] = useState<string | null>(null);
 
   const t = getDictionary(locale);
 
+  const notify = (msg: string) => {
+    setToast(msg);
+    window.setTimeout(() => setToast((cur) => (cur === msg ? null : cur)), 3200);
+  };
+
   const refresh = async () => {
-    const [dash, sq, fifa] = await Promise.all([
+    const [dash, sq, tac, fifa, hub, msgs] = await Promise.all([
       desktopApi.getDashboard(),
       desktopApi.getSquad(),
+      desktopApi.getTactics(),
       desktopApi.getFifaRankings(),
+      desktopApi.getClubHub(),
+      desktopApi.getInbox(),
     ]);
     setSnapshot(dash);
     setSquad(sq);
+    setFormation(FORMATIONS[tac.formation] ? tac.formation : '4-4-2');
+    const validIds =
+      tac.starter_ids.length >= 11
+        ? tac.starter_ids.slice(0, 11)
+        : sq.slice(0, 11).map((p) => p.player_id);
+    setStarterIds(validIds);
     setRankings(fifa);
+    setClubHub(hub);
+    setInbox(msgs);
+    setNewsFeed(dash.recent_news);
     if (!selectedPlayer && sq.length > 0) {
       setSelectedPlayer(sq[0]);
     }
   };
 
   useEffect(() => {
-    void refresh();
-  }, []);
+    if (inCareer) {
+      void refresh();
+    }
+  }, [inCareer]);
+
+  useEffect(() => {
+    if (!inCareer || route !== 'market') return;
+    void desktopApi.getMarketPlayers(marketSearch, marketMaxAge).then(setMarket);
+  }, [inCareer, route]);
+
+  useEffect(() => {
+    if (!inCareer || route !== 'news') return;
+    void desktopApi.getNewsFeed(newsScope).then(setNewsFeed);
+  }, [inCareer, route, newsScope]);
+
+  const teamNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    if (snapshot) {
+      map.set(snapshot.club.team_id, snapshot.club.name);
+      for (const r of snapshot.standings_preview) {
+        map.set(r.team_id, r.team_name);
+      }
+    }
+    return map;
+  }, [snapshot]);
 
   const handlePlayMatchday = async () => {
-    if (busy) return;
+    if (busy || !snapshot?.next_match) return;
     setBusy(true);
     try {
-      await desktopApi.simulateNextMatchday();
+      const outcomes = await desktopApi.simulateNextMatchday();
+      if (outcomes.length > 0) {
+        setMatchOutcomes(outcomes);
+      }
       await refresh();
+    } catch (err) {
+      notify(String(err));
     } finally {
       setBusy(false);
     }
   };
 
   useEffect(() => {
+    if (!inCareer) return;
     const onKey = (ev: KeyboardEvent) => {
       if (ev.code === 'Space' && ev.target === document.body) {
         ev.preventDefault();
@@ -71,15 +182,115 @@ export function App() {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  if (!inCareer) {
+    return (
+      <StartScreen
+        locale={locale}
+        onToggleLocale={() => setLocale(locale === 'id' ? 'en' : 'id')}
+        onCareerReady={(snap) => {
+          setSnapshot(snap);
+          setInCareer(true);
+          setRoute('dashboard');
+        }}
+      />
+    );
+  }
+
   if (!snapshot) {
     return <div style={{ padding: 32 }}>Loading Naratama Gelanggang...</div>;
   }
 
-  const starters = squad.slice(0, 11);
-  const filteredNews =
-    newsScope === 'all'
-      ? snapshot.recent_news
-      : snapshot.recent_news.filter((n) => n.scope === newsScope);
+  const squadMap = new Map(squad.map((p) => [p.player_id, p]));
+  const starters: PlayerDto[] = starterIds
+    .map((id) => squadMap.get(id))
+    .filter((p): p is PlayerDto => Boolean(p));
+  const starterSet = new Set(starterIds);
+  const rows = FORMATIONS[formation] ?? FORMATIONS['4-4-2'];
+
+  const handlePlayerClick = (player: PlayerDto) => {
+    setSelectedPlayer(player);
+    if (route !== 'squad') return;
+    if (swapPick === null) {
+      setSwapPick(player.player_id);
+      return;
+    }
+    if (swapPick === player.player_id) {
+      setSwapPick(null);
+      return;
+    }
+    const next = [...starterIds];
+    const idxA = next.indexOf(swapPick);
+    const idxB = next.indexOf(player.player_id);
+    if (idxA !== -1 && idxB !== -1) {
+      [next[idxA], next[idxB]] = [next[idxB], next[idxA]];
+    } else if (idxA !== -1 && idxB === -1) {
+      next[idxA] = player.player_id;
+    } else if (idxA === -1 && idxB !== -1) {
+      next[idxB] = swapPick;
+    }
+    setStarterIds(next);
+    setSwapPick(null);
+  };
+
+  const handleAutoXi = () => {
+    const gk = squad.filter((p) => p.position_id === 1).sort((a, b) => b.power - a.power);
+    const outfield = squad.filter((p) => p.position_id !== 1).sort((a, b) => b.power - a.power);
+    const picked = [...gk.slice(0, 1), ...outfield.slice(0, 10)].map((p) => p.player_id);
+    setStarterIds(picked.slice(0, 11));
+    setSwapPick(null);
+  };
+
+  const handleSaveTactics = async () => {
+    try {
+      await desktopApi.saveTactics(formation, starterIds);
+      notify('Tactics saved');
+    } catch (err) {
+      notify(String(err));
+    }
+  };
+
+  const handleTrain = async (focus: string) => {
+    try {
+      const count = await desktopApi.trainFocus(focus);
+      notify(`Training (${focus}): ${count} players improved`);
+      await refresh();
+    } catch (err) {
+      notify(String(err));
+    }
+  };
+
+  const handleMakeOffer = async (listing: MarketListingDto) => {
+    try {
+      const msg = await desktopApi.makeTransferOffer(
+        listing.player.player_id,
+        listing.club_id,
+        listing.player.value,
+      );
+      notify(`${t.market.offerSent}: ${msg}`);
+      await refresh();
+      setMarket(await desktopApi.getMarketPlayers(marketSearch, marketMaxAge));
+    } catch (err) {
+      notify(String(err));
+    }
+  };
+
+  const handleLeaveCareer = async () => {
+    try {
+      await desktopApi.leaveCareer(true);
+      setInCareer(false);
+      setSnapshot(null);
+    } catch (err) {
+      notify(String(err));
+    }
+  };
+
+  const nextOppId =
+    snapshot.next_match &&
+    (snapshot.next_match.home_team_id === snapshot.club.team_id
+      ? snapshot.next_match.away_team_id
+      : snapshot.next_match.home_team_id);
+  const nextOppName = nextOppId ? teamNameMap.get(nextOppId) ?? `Club #${nextOppId}` : null;
+  const isSeasonComplete = snapshot.next_match === null || snapshot.offseason !== null;
 
   return (
     <div className="shell">
@@ -114,12 +325,29 @@ export function App() {
           >
             {locale.toUpperCase()}
           </button>
-          <button className="btn" onClick={() => void desktopApi.saveCareerSlot()}>
+          <button
+            className="btn"
+            onClick={() =>
+              void desktopApi
+                .saveCareerSlot()
+                .then(() => notify(t.topbar.savedToast))
+                .catch((e) => notify(String(e)))
+            }
+          >
             {t.topbar.save}
           </button>
-          <button className="btn btn-primary" disabled={busy} onClick={() => void handlePlayMatchday()}>
-            ▶ {t.topbar.playMatch}
+          <button className="btn" onClick={() => void handleLeaveCareer()}>
+            {t.topbar.menu}
           </button>
+          {isSeasonComplete ? (
+            <button className="btn btn-primary" onClick={() => setShowOffseason(true)}>
+              ★ {t.topbar.offseason}
+            </button>
+          ) : (
+            <button className="btn btn-primary" disabled={busy} onClick={() => void handlePlayMatchday()}>
+              ▶ {t.topbar.playMatch}
+            </button>
+          )}
         </div>
       </header>
 
@@ -157,10 +385,10 @@ export function App() {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <div>
                   <div style={{ fontSize: 18, fontWeight: 800 }}>
-                    {snapshot.club.name} vs Opponent #{snapshot.next_match?.away_team_id ?? '—'}
+                    {nextOppName ? `${snapshot.club.name} vs ${nextOppName}` : t.offseason.title}
                   </div>
                   <div style={{ fontSize: 12, color: 'var(--text-dim)', marginTop: 4 }}>
-                    {t.dashboard.simulateHint}
+                    {isSeasonComplete ? t.dashboard.seasonDone : t.dashboard.simulateHint}
                   </div>
                 </div>
                 <div className="pill tabular">
@@ -183,7 +411,7 @@ export function App() {
                     </tr>
                   </thead>
                   <tbody>
-                    {snapshot.standings_preview.slice(0, 8).map((row, idx) => (
+                    {snapshot.standings_preview.slice(0, 10).map((row, idx) => (
                       <tr
                         key={row.team_id}
                         className={row.team_id === snapshot.club.team_id ? 'user-row' : ''}
@@ -217,50 +445,64 @@ export function App() {
         {route === 'squad' && (
           <div className="grid-2">
             <section className="card">
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 10 }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <h3 className="card-title" style={{ margin: 0 }}>
-                  {t.squad.tacticsBoard} (4-4-2)
+                  {t.squad.tacticsBoard}
                 </h3>
-                <button
-                  className="btn"
-                  onClick={() => void desktopApi.trainFocus('attacking').then(refresh)}
-                >
-                  {t.squad.train}
-                </button>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <select
+                    className="select"
+                    value={formation}
+                    onChange={(e) => setFormation(e.target.value)}
+                  >
+                    {Object.keys(FORMATIONS).map((f) => (
+                      <option key={f} value={f}>
+                        {f}
+                      </option>
+                    ))}
+                  </select>
+                  <button className="btn" onClick={handleAutoXi}>
+                    {t.squad.autoXi}
+                  </button>
+                  <button className="btn btn-primary" onClick={() => void handleSaveTactics()}>
+                    {t.squad.saveTactics}
+                  </button>
+                </div>
+              </div>
+              <div style={{ fontSize: 11.5, color: 'var(--text-dim)', marginBottom: 10 }}>
+                {t.squad.swapHint}
               </div>
               <div className="pitch-2d">
-                <div className="pitch-row">
-                  {starters.slice(9, 11).map((p) => (
-                    <div key={p.player_id} className="pitch-node" onClick={() => setSelectedPlayer(p)}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--accent-light)' }}>{p.power}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="pitch-row">
-                  {starters.slice(5, 9).map((p) => (
-                    <div key={p.player_id} className="pitch-node" onClick={() => setSelectedPlayer(p)}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--accent-light)' }}>{p.power}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="pitch-row">
-                  {starters.slice(1, 5).map((p) => (
-                    <div key={p.player_id} className="pitch-node" onClick={() => setSelectedPlayer(p)}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--accent-light)' }}>{p.power}</div>
-                    </div>
-                  ))}
-                </div>
-                <div className="pitch-row">
-                  {starters.slice(0, 1).map((p) => (
-                    <div key={p.player_id} className="pitch-node" onClick={() => setSelectedPlayer(p)}>
-                      <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
-                      <div style={{ fontSize: 11, color: 'var(--warn)' }}>{p.power}</div>
-                    </div>
-                  ))}
-                </div>
+                {rows.map(([start, end], rowIdx) => (
+                  <div key={rowIdx} className="pitch-row">
+                    {starters.slice(start, end).map((p) => (
+                      <div
+                        key={p.player_id}
+                        className={`pitch-node ${swapPick === p.player_id ? 'swap-selected' : ''}`}
+                        onClick={() => handlePlayerClick(p)}
+                      >
+                        <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: rowIdx === rows.length - 1 ? 'var(--warn)' : 'var(--accent-light)',
+                          }}
+                        >
+                          {p.power}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginTop: 12 }}>
+                {(['attacking', 'defending', 'playmaking', 'goalkeeping', 'fitness'] as const).map(
+                  (focus) => (
+                    <button key={focus} className="btn" onClick={() => void handleTrain(focus)}>
+                      {t.squad.train}: {focus}
+                    </button>
+                  ),
+                )}
               </div>
             </section>
 
@@ -269,6 +511,7 @@ export function App() {
               <table className="data-table tabular">
                 <thead>
                   <tr>
+                    <th>{t.squad.starter}</th>
                     <th>{t.squad.position}</th>
                     <th>{t.squad.player}</th>
                     <th>{t.squad.ovr}</th>
@@ -282,8 +525,14 @@ export function App() {
                     const pm = positionMeta(p.position_id);
                     const fitColor =
                       p.fitness > 70 ? 'var(--success)' : p.fitness > 40 ? 'var(--warn)' : 'var(--danger)';
+                    const isStarter = starterSet.has(p.player_id);
                     return (
-                      <tr key={p.player_id} onClick={() => setSelectedPlayer(p)}>
+                      <tr
+                        key={p.player_id}
+                        className={swapPick === p.player_id ? 'swap-selected' : isStarter ? 'user-row' : ''}
+                        onClick={() => handlePlayerClick(p)}
+                      >
+                        <td>{isStarter ? '★' : ''}</td>
                         <td>
                           <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
                         </td>
@@ -312,80 +561,9 @@ export function App() {
           </div>
         )}
 
-        {route === 'international' && (
+        {route === 'competitions' && (
           <section className="card">
-            <h3 className="card-title">{t.intl.rankings}</h3>
-            <table className="data-table tabular">
-              <thead>
-                <tr>
-                  <th>{t.intl.rank}</th>
-                  <th>{t.intl.nation}</th>
-                  <th>{t.intl.power}</th>
-                  <th>{t.intl.points}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {rankings.slice(0, 30).map((c, idx) => (
-                  <tr key={c.country_id}>
-                    <td>{idx + 1}</td>
-                    <td style={{ fontWeight: 600 }}>{c.name}</td>
-                    <td>{c.power}</td>
-                    <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
-                      {c.points.toFixed(2)}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
-        )}
-
-        {route === 'news' && (
-          <section className="card">
-            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
-              {(['all', 'world', 'region', 'league'] as const).map((sc) => (
-                <button
-                  key={sc}
-                  className={`btn ${newsScope === sc ? 'btn-primary' : ''}`}
-                  onClick={() => setNewsScope(sc)}
-                >
-                  {t.news[sc]}
-                </button>
-              ))}
-            </div>
-            {filteredNews.map((item) => (
-              <div key={item.news_id} className="news-item">
-                <div style={{ fontSize: 11, color: 'var(--accent)' }}>
-                  {item.date} · {item.category.toUpperCase()}
-                </div>
-                <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{item.headline}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
-                  {item.body}
-                </div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {route === 'inbox' && (
-          <section className="card">
-            <h3 className="card-title">{t.nav.inbox}</h3>
-            {snapshot.recent_inbox.map((m) => (
-              <div key={m.message_id} className="news-item">
-                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                  <strong>{m.title}</strong>
-                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{m.date}</span>
-                </div>
-                <div style={{ fontSize: 12, color: 'var(--accent)' }}>{m.sender}</div>
-                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{m.body}</div>
-              </div>
-            ))}
-          </section>
-        )}
-
-        {(route === 'competitions' || route === 'market' || route === 'clubHub') && (
-          <section className="card">
-            <h3 className="card-title">{t.nav[route]}</h3>
+            <h3 className="card-title">{t.dashboard.leagueStandings}</h3>
             <table className="data-table tabular">
               <thead>
                 <tr>
@@ -395,6 +573,8 @@ export function App() {
                   <th>W</th>
                   <th>D</th>
                   <th>L</th>
+                  <th>GF</th>
+                  <th>GA</th>
                   <th>GD</th>
                   <th>Pts</th>
                 </tr>
@@ -411,12 +591,289 @@ export function App() {
                     <td>{row.wins}</td>
                     <td>{row.draws}</td>
                     <td>{row.losses}</td>
+                    <td>{row.goals_for}</td>
+                    <td>{row.goals_against}</td>
                     <td>{row.goals_for - row.goals_against}</td>
                     <td style={{ fontWeight: 800, color: 'var(--accent-light)' }}>{row.points}</td>
                   </tr>
                 ))}
               </tbody>
             </table>
+          </section>
+        )}
+
+        {route === 'international' && (
+          <section className="card">
+            <h3 className="card-title">{t.intl.rankings}</h3>
+            <table className="data-table tabular">
+              <thead>
+                <tr>
+                  <th>{t.intl.rank}</th>
+                  <th>{t.intl.nation}</th>
+                  <th>{t.intl.power}</th>
+                  <th>{t.intl.points}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rankings.slice(0, 50).map((c, idx) => (
+                  <tr key={c.country_id}>
+                    <td>{idx + 1}</td>
+                    <td style={{ fontWeight: 600 }}>
+                      {c.name} <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>({c.iso2})</span>
+                    </td>
+                    <td>{c.power}</td>
+                    <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
+                      {c.points.toFixed(2)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        {route === 'market' && (
+          <section className="card">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12, flexWrap: 'wrap', alignItems: 'center' }}>
+              <input
+                className="input"
+                style={{ flex: 1, minWidth: 180 }}
+                placeholder={t.market.searchPlaceholder}
+                value={marketSearch}
+                onChange={(e) => setMarketSearch(e.target.value)}
+              />
+              <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12.5, color: 'var(--text-dim)' }}>
+                {t.market.maxAge}
+                <input
+                  className="input tabular"
+                  type="number"
+                  min={16}
+                  max={45}
+                  style={{ width: 68 }}
+                  value={marketMaxAge}
+                  onChange={(e) => setMarketMaxAge(Number(e.target.value))}
+                />
+              </label>
+              <button
+                className="btn btn-primary"
+                onClick={() => void desktopApi.getMarketPlayers(marketSearch, marketMaxAge).then(setMarket)}
+              >
+                {t.market.search}
+              </button>
+            </div>
+            <table className="data-table tabular">
+              <thead>
+                <tr>
+                  <th>{t.squad.position}</th>
+                  <th>{t.squad.player}</th>
+                  <th>{t.market.club}</th>
+                  <th>{t.squad.ovr}</th>
+                  <th>{t.squad.age}</th>
+                  <th>{t.squad.value}</th>
+                  <th />
+                </tr>
+              </thead>
+              <tbody>
+                {market.map((m) => {
+                  const pm = positionMeta(m.player.position_id);
+                  return (
+                    <tr key={m.player.player_id} onClick={() => setSelectedPlayer(m.player)}>
+                      <td>
+                        <span className={`pos-badge ${pm.cls}`}>{pm.label}</span>
+                      </td>
+                      <td style={{ fontWeight: 600 }}>{m.player.name}</td>
+                      <td style={{ color: 'var(--text-dim)' }}>{m.club_name}</td>
+                      <td>
+                        <span className="ovr-chip">{m.player.power}</span>
+                      </td>
+                      <td>{m.player.age}</td>
+                      <td>{formatMoney(m.player.value)}</td>
+                      <td>
+                        <button
+                          className="btn"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void handleMakeOffer(m);
+                          }}
+                        >
+                          {t.market.makeOffer}
+                        </button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </section>
+        )}
+
+        {route === 'clubHub' && clubHub && (
+          <div className="grid-2">
+            <section className="card">
+              <h3 className="card-title">{t.clubHub.facilities}</h3>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
+                <div className="tabular">
+                  <div>
+                    {t.clubHub.trainingLevel}: <strong>Lv {clubHub.facilities.training_level} / 5</strong>
+                  </div>
+                  <div style={{ marginTop: 4 }}>
+                    {t.clubHub.medicalLevel}: <strong>Lv {clubHub.facilities.medical_level} / 5</strong>
+                  </div>
+                </div>
+                <button
+                  className="btn btn-primary"
+                  disabled={clubHub.facilities.training_level >= 5}
+                  onClick={() =>
+                    void desktopApi
+                      .upgradeTrainingGround()
+                      .then(() => {
+                        notify('Training Ground upgraded!');
+                        return refresh();
+                      })
+                      .catch((e) => notify(String(e)))
+                  }
+                >
+                  {t.clubHub.upgradeTraining}
+                </button>
+              </div>
+
+              <h3 className="card-title">{t.clubHub.staff}</h3>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                <select className="select" value={staffRole} onChange={(e) => setStaffRole(e.target.value)}>
+                  <option value="head_physio">Head Physio</option>
+                  <option value="tactical_analyst">Tactical Analyst</option>
+                  <option value="head_scout">Head Scout</option>
+                </select>
+                <input
+                  className="input"
+                  style={{ flex: 1, minWidth: 110 }}
+                  value={staffName}
+                  onChange={(e) => setStaffName(e.target.value)}
+                />
+                <select
+                  className="select"
+                  value={staffStars}
+                  onChange={(e) => setStaffStars(Number(e.target.value))}
+                >
+                  {[1, 2, 3, 4, 5].map((s) => (
+                    <option key={s} value={s}>
+                      {s}★
+                    </option>
+                  ))}
+                </select>
+                <button
+                  className="btn"
+                  onClick={() =>
+                    void desktopApi
+                      .hireStaff(staffRole, staffName, staffStars)
+                      .then(() => {
+                        notify(`Hired ${staffName}`);
+                        return refresh();
+                      })
+                      .catch((e) => notify(String(e)))
+                  }
+                >
+                  {t.clubHub.hireStaff}
+                </button>
+              </div>
+              {clubHub.staff.map((st) => (
+                <div key={st.staff_id} className="news-item" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <strong>{st.name}</strong>{' '}
+                    <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>({st.role})</span>
+                  </div>
+                  <span className="tabular" style={{ color: 'var(--accent-light)' }}>
+                    {st.stars}★ · {formatMoney(st.salary)}/w
+                  </span>
+                </div>
+              ))}
+            </section>
+
+            <section className="card">
+              <h3 className="card-title">{t.clubHub.cashFlow}</h3>
+              <table className="data-table tabular" style={{ marginBottom: 16 }}>
+                <tbody>
+                  {clubHub.cash_summary.map(([cat, amt]) => (
+                    <tr key={cat}>
+                      <td>{cat}</td>
+                      <td
+                        style={{
+                          textAlign: 'right',
+                          fontWeight: 700,
+                          color: amt >= 0 ? 'var(--success)' : 'var(--danger)',
+                        }}
+                      >
+                        {formatMoney(amt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+
+              <h3 className="card-title">{t.clubHub.sponsors}</h3>
+              {clubHub.sponsorships.map((sp) => (
+                <div key={sp.sponsorship_id} className="news-item" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <div>
+                    <strong>{sp.sponsor_name}</strong>{' '}
+                    <span style={{ color: 'var(--text-dim)', fontSize: 12 }}>({sp.deal_type})</span>
+                  </div>
+                  <span className="tabular" style={{ color: 'var(--success)', fontWeight: 700 }}>
+                    {formatMoney(sp.base_reward)}
+                  </span>
+                </div>
+              ))}
+            </section>
+          </div>
+        )}
+
+        {route === 'news' && (
+          <section className="card">
+            <div style={{ display: 'flex', gap: 8, marginBottom: 12 }}>
+              {(['all', 'world', 'region', 'league'] as const).map((sc) => (
+                <button
+                  key={sc}
+                  className={`btn ${newsScope === sc ? 'btn-primary' : ''}`}
+                  onClick={() => setNewsScope(sc)}
+                >
+                  {t.news[sc]}
+                </button>
+              ))}
+            </div>
+            {newsFeed.map((item) => (
+              <div key={item.news_id} className="news-item">
+                <div style={{ fontSize: 11, color: 'var(--accent)' }}>
+                  {item.date} · {item.category.toUpperCase()}
+                </div>
+                <div style={{ fontWeight: 700, fontSize: 14, marginTop: 2 }}>{item.headline}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>
+                  {item.body}
+                </div>
+              </div>
+            ))}
+          </section>
+        )}
+
+        {route === 'inbox' && (
+          <section className="card">
+            <h3 className="card-title">{t.nav.inbox}</h3>
+            {inbox.map((m) => (
+              <div
+                key={m.message_id}
+                className={`news-item ${m.is_read ? '' : 'unread'}`}
+                style={{ cursor: 'pointer' }}
+                onClick={() =>
+                  !m.is_read &&
+                  void desktopApi.markMessageRead(m.message_id).then(refresh)
+                }
+              >
+                <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                  <strong>{m.title}</strong>
+                  <span style={{ fontSize: 11, color: 'var(--text-dim)' }}>{m.date}</span>
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--accent)' }}>{m.sender}</div>
+                <div style={{ fontSize: 12.5, color: 'var(--text-dim)', marginTop: 4 }}>{m.body}</div>
+              </div>
+            ))}
           </section>
         )}
       </main>
@@ -450,7 +907,57 @@ export function App() {
           <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.inspector.selectHint}</div>
         )}
       </aside>
+
+      {matchOutcomes && (
+        <div className="modal-backdrop" onClick={() => setMatchOutcomes(null)}>
+          <div className="modal-box" onClick={(e) => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 className="card-title" style={{ margin: 0 }}>
+                {t.dashboard.matchResults} ({matchOutcomes.length})
+              </h3>
+              <button className="btn btn-primary" onClick={() => setMatchOutcomes(null)}>
+                {t.dashboard.close}
+              </button>
+            </div>
+            <table className="data-table tabular">
+              <tbody>
+                {matchOutcomes.slice(0, 15).map((o) => {
+                  const isUser =
+                    o.home_team_id === snapshot.club.team_id ||
+                    o.away_team_id === snapshot.club.team_id;
+                  return (
+                    <tr key={o.match_id} className={isUser ? 'user-row' : ''}>
+                      <td style={{ textAlign: 'right', fontWeight: 600 }}>
+                        {teamNameMap.get(o.home_team_id) ?? `Club #${o.home_team_id}`}
+                      </td>
+                      <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--accent-light)' }}>
+                        {o.home_goals} - {o.away_goals}
+                      </td>
+                      <td style={{ fontWeight: 600 }}>
+                        {teamNameMap.get(o.away_team_id) ?? `Club #${o.away_team_id}`}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {showOffseason && (
+        <OffseasonModal
+          locale={locale}
+          offseason={snapshot.offseason}
+          onUpdated={(snap) => {
+            setSnapshot(snap);
+            void refresh();
+          }}
+          onClose={() => setShowOffseason(false)}
+        />
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }
-
