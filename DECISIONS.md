@@ -35,3 +35,9 @@ Status: accepted (2026-11-25)
 Context: Slot karier hanya hidup di `saves/`, sehingga backup/pemindahan antar mesin tidak mungkin; dan `FfpEnforcement` sebelumnya hanya telemetri tanpa konsekuensi.
 Decision: `SessionManager` mengekspor slot ke `<saves>/exports/naratama_slot<N>_<epoch>.zip` (payload `naratama_slot.db`, format SQLite divalidasi saat impor dan hanya menerima arsip di dalam folder `exports`), dan impor menolak menimpa slot yang sedang aktif. Mode FFP disimpan di `finance_settings.mode`; saat mode bukan `off`, offseason mencatat level PSR + sanksi dan `standard`/`strict` memblokir registrasi transfer bila assessor menyatakan `transfer_blocked`.
 Consequences: Backup/restore native tanpa dialog file eksternal; FFP punya konsekuensi nyata namun tetap `off` secara default agar paritas MVP aman.
+
+## ADR-007: Tayangan Ulang Laga dari Timeline Tersimpan
+Status: accepted (2026-11-25)
+Context: PRD meminta pengalaman menonton menit-per-menit (1x/2x/4x/Skip + VAR + adu penalti), tetapi engine Rust belum punya API simulasi bertahap dengan intervensi di tengah laga.
+Decision: `DesktopFacade::latest_match_replay` membaca laga user terakhir yang selesai beserta `match_incidents`, lalu UI memutar ulang kejadian itu sebagai timeline (skor berjalan, gol/bunuh diri/penalti, kartu, cedera, VAR, penalti shootout) tanpa mengubah hasil yang sudah tersimpan. Layout pertandingan tetap dihitung penuh di backend sehingga determinisme dan invariant ledger tidak berubah.
+Consequences: Pengalaman menonton tersedia tanpa risiko state ganda; fitur interaktif (subs/mentality) tetap dicatat sebagai pekerjaan terpisah karena membutuhkan simulator inkremental.

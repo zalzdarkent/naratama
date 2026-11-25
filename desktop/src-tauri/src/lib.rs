@@ -12,7 +12,7 @@ use naratama_engine::{
     DesktopFacade, FinanceService, GenerateCareerRequest, InboxMessageRow, InboxService,
     InitialSquadPreset, MatchdayOutcome, MatchdayService, NationalTeamService, NewsEngine,
     NewsItemRow, OfferResponseAction, OffseasonService, PreseasonCamp, SeasonGenerator,
-    SquadTacticsService, StadiumArchitecture, TrainingFocus, TransferMarketService,
+    MatchReplay, SquadTacticsService, StadiumArchitecture, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
     ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchStatus, Money,
@@ -669,6 +669,19 @@ fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutc
 }
 
 #[tauri::command]
+fn get_match_replay(state: State<'_, AppState>) -> Result<Option<MatchReplay>, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    DesktopFacade::latest_match_replay(&active.conn, active.season_id, active.user_team_id)
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn train_focus(state: State<'_, AppState>, focus: String) -> Result<usize, String> {
     let mut guard = state
         .active
@@ -1126,6 +1139,7 @@ pub fn run() {
             get_tactics,
             save_tactics,
             simulate_next_matchday,
+            get_match_replay,
             train_focus,
             get_club_hub,
             upgrade_training_ground,

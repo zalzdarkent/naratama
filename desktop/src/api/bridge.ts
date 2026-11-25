@@ -139,6 +139,28 @@ export interface MatchdayOutcomeDto {
   winner_id: number | null;
 }
 
+export interface MatchEventDto {
+  minute: number;
+  event_type: string;
+  side: string;
+  player_name: string | null;
+  detail: string | null;
+}
+
+export interface MatchReplayDto {
+  match_id: number;
+  date: string;
+  home_team_id: number;
+  away_team_id: number;
+  home_name: string;
+  away_name: string;
+  home_goals: number;
+  away_goals: number;
+  penalty_home_goals: number | null;
+  penalty_away_goals: number | null;
+  events: MatchEventDto[];
+}
+
 export interface ClubFacilitiesDto {
   team_id: number;
   training_level: number;
@@ -428,6 +450,9 @@ export const desktopApi = {
         { match_id: 1001, home_team_id: 101, away_team_id: 102, home_goals: 2, away_goals: 1, winner_id: 101 },
       ]
     );
+  },
+  async getMatchReplay(): Promise<MatchReplayDto | null> {
+    return (await tauriInvoke<MatchReplayDto | null>('get_match_replay')) ?? null;
   },
   async trainFocus(focus: string): Promise<number> {
     return (await tauriInvoke<number>('train_focus', { focus })) ?? 4;

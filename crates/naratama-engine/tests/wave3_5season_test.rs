@@ -8,10 +8,10 @@ use naratama_db::market_repo::MarketRepo;
 use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::session::SessionManager;
 use naratama_engine::{
-    BoardAmbition, CustomClubRequest, CustomClubService, FinanceService, GenerateCareerRequest,
-    InitialSquadPreset, MatchdayService, OfferResponseAction, OffseasonService, OnboardingService,
-    PreseasonCamp, ScoutingService, SeasonGenerator, SquadTacticsService, StadiumArchitecture,
-    TrainingFocus, TransferMarketService,
+    BoardAmbition, CustomClubRequest, CustomClubService, DesktopFacade, FinanceService,
+    GenerateCareerRequest, InitialSquadPreset, MatchdayService, OfferResponseAction,
+    OffseasonService, OnboardingService, PreseasonCamp, ScoutingService, SeasonGenerator,
+    SquadTacticsService, StadiumArchitecture, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
     CountryId, FfpEnforcement, LedgerCategory, LedgerPeriod, MatchStatus, Season, StaffRole,
@@ -282,6 +282,21 @@ fn headless_five_season_career_and_economic_invariants() {
                 &mut rng,
             )
             .unwrap();
+
+            if season_idx == 0 {
+                let replay =
+                    DesktopFacade::latest_match_replay(&conn, season.season_id, user_team_id)
+                        .unwrap()
+                        .expect("user match replay must exist after a matchday");
+                assert!(
+                    !replay.events.is_empty(),
+                    "recorded user match must expose an incident timeline"
+                );
+                assert!(
+                    replay.events.iter().any(|e| e.minute <= 90),
+                    "replay events must carry in-match minutes"
+                );
+            }
 
             let wk = date.iso_week().week();
             if last_hk_week != Some(wk) {

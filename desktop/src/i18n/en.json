@@ -145,5 +145,23 @@
     "nation": "Nation",
     "points": "Elo Points",
     "power": "OVR"
+  },
+  "match": {
+    "title": "Match Replay",
+    "minute": "minute",
+    "play": "Play",
+    "pause": "Pause",
+    "skip": "Skip",
+    "goal": "Goal",
+    "ownGoal": "Own Goal",
+    "penaltyScored": "Penalty Scored",
+    "penaltyMissed": "Penalty Missed",
+    "yellowCard": "Yellow Card",
+    "redCard": "Red Card",
+    "injury": "Injury",
+    "varDisallowed": "VAR: Goal Disallowed",
+    "shootout": "Penalty Shootout",
+    "penalties": "Penalties",
+    "noEvents": "No key incidents yet."
   }
 }

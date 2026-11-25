@@ -9,10 +9,12 @@ import {
   isTauriRuntime,
   MarketListingDto,
   MatchdayOutcomeDto,
+  MatchReplayDto,
   NewsItemDto,
   PlayerDto,
   positionMeta,
 } from './api/bridge';
+import { MatchReplay } from './components/MatchReplay';
 import { OffseasonModal } from './components/OffseasonModal';
 import { StartScreen } from './components/StartScreen';
 import { getDictionary, Locale } from './i18n';
@@ -87,6 +89,7 @@ export function App() {
   const [inbox, setInbox] = useState<InboxMessageDto[]>([]);
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerDto | null>(null);
   const [matchOutcomes, setMatchOutcomes] = useState<MatchdayOutcomeDto[] | null>(null);
+  const [replay, setReplay] = useState<MatchReplayDto | null>(null);
   const [showOffseason, setShowOffseason] = useState(false);
   const [staffRole, setStaffRole] = useState('head_physio');
   const [staffName, setStaffName] = useState('Coach Pratama');
@@ -159,8 +162,18 @@ export function App() {
     setBusy(true);
     try {
       const outcomes = await desktopApi.simulateNextMatchday();
+      const userMatch = outcomes.find(
+        (o) =>
+          o.home_team_id === snapshot?.club.team_id || o.away_team_id === snapshot?.club.team_id,
+      );
       if (outcomes.length > 0) {
         setMatchOutcomes(outcomes);
+      }
+      if (userMatch) {
+        const stored = await desktopApi.getMatchReplay();
+        if (stored && stored.match_id === userMatch.match_id) {
+          setReplay(stored);
+        }
       }
       await refresh();
     } catch (err) {
@@ -191,12 +204,14 @@ export function App() {
         ev.preventDefault();
         setMatchOutcomes(null);
         setShowOffseason(false);
+        setReplay(null);
         void handlePlayMatchday();
         return;
       }
       if (ev.key === 'Escape') {
         setMatchOutcomes(null);
         setShowOffseason(false);
+        setReplay(null);
         return;
       }
       const key = ev.key.toLowerCase();
@@ -984,6 +999,15 @@ export function App() {
             </table>
           </div>
         </div>
+      )}
+
+      {replay && (
+        <MatchReplay
+          locale={locale}
+          userTeamId={snapshot.club.team_id}
+          replay={replay}
+          onClose={() => setReplay(null)}
+        />
       )}
 
       {showOffseason && (

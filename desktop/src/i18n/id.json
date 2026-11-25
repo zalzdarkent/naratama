@@ -145,5 +145,23 @@
     "nation": "Negara",
     "points": "Poin Elo",
     "power": "OVR"
+  },
+  "match": {
+    "title": "Tayangan Ulang Laga",
+    "minute": "menit",
+    "play": "Main",
+    "pause": "Jeda",
+    "skip": "Lewati",
+    "goal": "Gol",
+    "ownGoal": "Gol Bunuh Diri",
+    "penaltyScored": "Penalti Masuk",
+    "penaltyMissed": "Penalti Gagal",
+    "yellowCard": "Kartu Kuning",
+    "redCard": "Kartu Merah",
+    "injury": "Cedera",
+    "varDisallowed": "VAR: Gol Dibatalkan",
+    "shootout": "Adu Penalti",
+    "penalties": "Adu Penalti",
+    "noEvents": "Belum ada kejadian penting."
   }
 }

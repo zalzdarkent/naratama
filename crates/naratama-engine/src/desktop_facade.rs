@@ -10,7 +10,7 @@ use naratama_model::{
     FixtureMatch, MatchStatus, Money, NaratamaError, NaratamaResult, Season, SeasonId, StandingRow,
     Team, TeamId, TournamentId,
 };
-use naratama_sim::compute_standings;
+use naratama_sim::{compute_standings, MatchEvent};
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
@@ -32,6 +32,33 @@ pub struct DashboardSnapshot {
     pub recent_inbox: Vec<InboxMessageRow>,
     pub offseason: Option<OffseasonStateRow>,
     pub weekly_payroll: Money,
+}
+
+/// Stored timeline of a finished user match, replayed by the desktop match viewer.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct MatchReplay {
+    pub match_id: i64,
+    pub date: String,
+    pub home_team_id: TeamId,
+    pub away_team_id: TeamId,
+    pub home_name: String,
+    pub away_name: String,
+    pub home_goals: i32,
+    pub away_goals: i32,
+    pub penalty_home_goals: Option<i32>,
+    pub penalty_away_goals: Option<i32>,
+    pub events: Vec<MatchEvent>,
+}
+
+struct RawReplayMatch {
+    match_id: i64,
+    date: Option<String>,
+    home_id: i64,
+    away_id: i64,
+    home_goals: i32,
+    away_goals: i32,
+    penalty_home_goals: Option<i32>,
+    penalty_away_goals: Option<i32>,
 }
 
 /// High-level facade for the Tauri v2 Desktop IPC commands.
@@ -125,6 +152,88 @@ impl DesktopFacade {
             offseason,
             weekly_payroll,
         })
+    }
+}
+
+impl DesktopFacade {
+    /// Latest finished match of `user_team_id` in the season, with its stored incident timeline.
+    pub fn latest_match_replay(
+        conn: &Connection,
+        season_id: SeasonId,
+        user_team_id: TeamId,
+    ) -> NaratamaResult<Option<MatchReplay>> {
+        let row: Option<RawReplayMatch> = conn
+            .query_row(
+                "SELECT match_id, date, home_team_id, away_team_id,
+                        CAST(COALESCE(home_goals, 0) AS INTEGER),
+                        CAST(COALESCE(away_goals, 0) AS INTEGER),
+                        penalty_home_goals, penalty_away_goals
+                 FROM matches
+                 WHERE season_id = ?1 AND status = ?2
+                   AND (home_team_id = ?3 OR away_team_id = ?3)
+                 ORDER BY date DESC, match_id DESC
+                 LIMIT 1",
+                params![season_id.0, MatchStatus::Finished as i64, user_team_id.0],
+                |r| {
+                    Ok(RawReplayMatch {
+                        match_id: r.get(0)?,
+                        date: r.get(1)?,
+                        home_id: r.get(2)?,
+                        away_id: r.get(3)?,
+                        home_goals: r.get(4)?,
+                        away_goals: r.get(5)?,
+                        penalty_home_goals: r.get(6)?,
+                        penalty_away_goals: r.get(7)?,
+                    })
+                },
+            )
+            .optional()
+            .map_err(db_err)?;
+        let Some(raw) = row else {
+            return Ok(None);
+        };
+        let RawReplayMatch {
+            match_id,
+            date,
+            home_id,
+            away_id,
+            home_goals,
+            away_goals,
+            penalty_home_goals,
+            penalty_away_goals,
+        } = raw;
+
+        let mut stmt = conn
+            .prepare(
+                "SELECT data FROM match_incidents WHERE match_id = ?1 ORDER BY incident_id ASC",
+            )
+            .map_err(db_err)?;
+        let events: Vec<MatchEvent> = stmt
+            .query_map(params![match_id], |r| r.get::<_, Option<String>>(0))
+            .map_err(db_err)?
+            .filter_map(Result::ok)
+            .flatten()
+            .filter_map(|raw| serde_json::from_str::<MatchEvent>(&raw).ok())
+            .collect();
+
+        let names = |team_id: i64| -> NaratamaResult<String> {
+            Ok(ReferenceRepo::new(conn)
+                .team_by_id(TeamId(team_id))?
+                .map_or_else(|| format!("Club #{team_id}"), |t| t.name))
+        };
+        Ok(Some(MatchReplay {
+            match_id,
+            date: date.unwrap_or_default(),
+            home_team_id: TeamId(home_id),
+            away_team_id: TeamId(away_id),
+            home_name: names(home_id)?,
+            away_name: names(away_id)?,
+            home_goals,
+            away_goals,
+            penalty_home_goals,
+            penalty_away_goals,
+            events,
+        }))
     }
 }
 
