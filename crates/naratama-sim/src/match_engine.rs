@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use naratama_model::{Money, Player, PlayerId, PositionGroup, Stadium, TeamId};
+use naratama_model::{Money, NaratamaError, Player, PlayerId, PositionGroup, Stadium, TeamId};
 use rand::Rng;
 use serde::{Deserialize, Serialize};
 
@@ -276,7 +276,6 @@ impl MatchEngine {
         Self::simulate_lineups(rng, input, &home, &away, record_events)
     }
 
-    #[allow(clippy::too_many_lines)]
     fn simulate_lineups<R: Rng>(
         rng: &mut R,
         input: &MatchInput,
@@ -284,12 +283,22 @@ impl MatchEngine {
         away: &Lineup,
         record_events: bool,
     ) -> MatchResult {
-        let raw_home_att = Lineup::attack_on(&home.starters) / 9.4;
-        let raw_away_att = Lineup::attack_on(&away.starters) / 9.4;
-        let raw_home_mid = Lineup::midfield_on(&home.starters) / 8.0;
-        let raw_away_mid = Lineup::midfield_on(&away.starters) / 8.0;
-        let raw_home_def = Lineup::defense_on(&home.starters) / 10.4;
-        let raw_away_def = Lineup::defense_on(&away.starters) / 10.4;
+        LiveMatch::from_lineups(input, home, away, record_events).run_full(rng)
+    }
+
+    /// Rebuilds the scoring parameters from the players currently available to each side.
+    fn compute_bases(
+        input: &MatchInput,
+        home_starters: &[Player],
+        away_starters: &[Player],
+        adjustment: Option<(MatchSide, MatchMentality)>,
+    ) -> MatchBases {
+        let raw_home_att = Lineup::attack_on(home_starters) / 9.4;
+        let raw_away_att = Lineup::attack_on(away_starters) / 9.4;
+        let raw_home_mid = Lineup::midfield_on(home_starters) / 8.0;
+        let raw_away_mid = Lineup::midfield_on(away_starters) / 8.0;
+        let raw_home_def = Lineup::defense_on(home_starters) / 10.4;
+        let raw_away_def = Lineup::defense_on(away_starters) / 10.4;
 
         let home_squad_ovr = (raw_home_att + raw_home_mid + raw_home_def) / 3.0;
         let away_squad_ovr = (raw_away_att + raw_away_mid + raw_away_def) / 3.0;
@@ -322,128 +331,270 @@ impl MatchEngine {
         let away_edge =
             (away_att - home_def) * 0.45 + (away_mid - home_mid) * 0.25 - ovr_gap * 0.40 + away_adv;
 
-        let temp_mid = Self::temps_factor(input.referee_temper);
-        let base_home_rate = shot_rate_for_edge(home_edge);
-        let base_away_rate = shot_rate_for_edge(away_edge);
-        let base_home_conv = conversion_for_edge(home_edge, input.home_tactical_bonus);
-        let base_away_conv = conversion_for_edge(away_edge, input.away_tactical_bonus);
+        let temp_mid = MatchEngine::temps_factor(input.referee_temper);
+        let mut base_home_rate = shot_rate_for_edge(home_edge);
+        let mut base_away_rate = shot_rate_for_edge(away_edge);
+        let mut base_home_conv = conversion_for_edge(home_edge, input.home_tactical_bonus);
+        let mut base_away_conv = conversion_for_edge(away_edge, input.away_tactical_bonus);
+        if let Some((side, mentality)) = adjustment {
+            let (rate_mul, conv_mul, opp_rate_mul) = mentality.multipliers();
+            match side {
+                MatchSide::Home => {
+                    base_home_rate *= rate_mul;
+                    base_home_conv = (base_home_conv * conv_mul).clamp(0.03, 0.40);
+                    base_away_rate *= opp_rate_mul;
+                }
+                MatchSide::Away => {
+                    base_away_rate *= rate_mul;
+                    base_away_conv = (base_away_conv * conv_mul).clamp(0.03, 0.40);
+                    base_home_rate *= opp_rate_mul;
+                }
+            }
+        }
 
         let home_attack_share =
             (base_home_rate / (base_home_rate + base_away_rate).max(0.001)).clamp(0.12, 0.88);
-        let home_penalty_rate = (Self::PENALTY_POOL / 90.0) * home_attack_share;
-        let away_penalty_rate = (Self::PENALTY_POOL / 90.0) * (1.0 - home_attack_share);
-        let own_goal_rate = Self::OWN_GOAL_POOL / 90.0;
-        let yellow_rate = Self::YELLOW_POOL / 90.0 / 2.0 * temp_mid;
-        let red_rate = Self::RED_POOL / 90.0 / 2.0 * temp_mid;
-        let injury_rate = Self::INJURY_POOL / 90.0 / 2.0;
+        let home_penalty_rate = (MatchEngine::PENALTY_POOL / 90.0) * home_attack_share;
+        let away_penalty_rate = (MatchEngine::PENALTY_POOL / 90.0) * (1.0 - home_attack_share);
+        let own_goal_rate = MatchEngine::OWN_GOAL_POOL / 90.0;
+        let yellow_rate = MatchEngine::YELLOW_POOL / 90.0 / 2.0 * temp_mid;
+        let red_rate = MatchEngine::RED_POOL / 90.0 / 2.0 * temp_mid;
+        let injury_rate = MatchEngine::INJURY_POOL / 90.0 / 2.0;
 
-        let mut state = SimState::new(input, home, away, record_events);
+        MatchBases {
+            home_mid,
+            away_mid,
+            ovr_gap,
+            base_home_rate,
+            base_away_rate,
+            base_home_conv,
+            base_away_conv,
+            home_attack_share,
+            home_penalty_rate,
+            away_penalty_rate,
+            own_goal_rate,
+            yellow_rate,
+            red_rate,
+            injury_rate,
+        }
+    }
+}
 
-        let run_minutes = |state: &mut SimState, rng: &mut R, start_min: i32, end_min: i32| {
-            for minute in start_min..=end_min {
-                let home_missing = 11_i32.saturating_sub(state.home_on.len() as i32);
-                let away_missing = 11_i32.saturating_sub(state.away_on.len() as i32);
+/// Scoring parameters derived from the on-pitch elevens.
+#[derive(Debug, Clone, Copy)]
+struct MatchBases {
+    home_mid: f64,
+    away_mid: f64,
+    ovr_gap: f64,
+    base_home_rate: f64,
+    base_away_rate: f64,
+    base_home_conv: f64,
+    base_away_conv: f64,
+    home_attack_share: f64,
+    home_penalty_rate: f64,
+    away_penalty_rate: f64,
+    own_goal_rate: f64,
+    yellow_rate: f64,
+    red_rate: f64,
+    injury_rate: f64,
+}
 
-                let mut home_rate =
-                    base_home_rate * 0.82_f64.powi(home_missing) * 1.16_f64.powi(away_missing);
-                let mut away_rate =
-                    base_away_rate * 0.82_f64.powi(away_missing) * 1.16_f64.powi(home_missing);
-                let mut home_conv = base_home_conv * 1.08_f64.powi(away_missing);
-                let mut away_conv = base_away_conv * 1.08_f64.powi(home_missing);
+/// Tactical instruction applied to the user's side for the remaining minutes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub enum MatchMentality {
+    Defensive,
+    #[default]
+    Balanced,
+    Attacking,
+}
 
-                if ovr_gap >= 10.0 && minute >= 35 && (state.home_goals - state.away_goals) <= 1 {
-                    let surge = (1.0 + (ovr_gap - 8.0) * 0.015).clamp(1.08, 1.38);
-                    home_rate *= surge;
-                    home_conv = (home_conv * 1.12).clamp(0.04, 0.36);
-                } else if ovr_gap <= -10.0
-                    && minute >= 35
-                    && (state.away_goals - state.home_goals) <= 1
-                {
-                    let surge = (1.0 + (-ovr_gap - 8.0) * 0.015).clamp(1.08, 1.38);
-                    away_rate *= surge;
-                    away_conv = (away_conv * 1.12).clamp(0.04, 0.36);
-                }
+impl MatchMentality {
+    #[must_use]
+    pub const fn as_str(self) -> &'static str {
+        match self {
+            Self::Defensive => "defensive",
+            Self::Balanced => "balanced",
+            Self::Attacking => "attacking",
+        }
+    }
 
-                // Home & away open-play attacks
-                if rng.gen::<f64>() < home_rate {
-                    state.process_attack(rng, MatchSide::Home, minute, home_conv);
-                }
-                if rng.gen::<f64>() < away_rate {
-                    state.process_attack(rng, MatchSide::Away, minute, away_conv);
-                }
+    /// `(own shot-rate, own conversion, opponent shot-rate)` multipliers.
+    const fn multipliers(self) -> (f64, f64, f64) {
+        match self {
+            Self::Defensive => (0.88, 0.97, 0.93),
+            Self::Balanced => (1.0, 1.0, 1.0),
+            Self::Attacking => (1.15, 1.03, 1.06),
+        }
+    }
+}
 
-                // Penalties
-                if rng.gen::<f64>() < home_penalty_rate {
-                    state.process_penalty(rng, MatchSide::Home, minute);
-                }
-                if rng.gen::<f64>() < away_penalty_rate {
-                    state.process_penalty(rng, MatchSide::Away, minute);
-                }
+/// Incremental live match: the same simulation, pausable so the manager can adjust at the break.
+pub struct LiveMatch {
+    input: MatchInput,
+    home_starters: Vec<Player>,
+    away_starters: Vec<Player>,
+    state: SimState,
+    bases: MatchBases,
+    minute: i32,
+    adjustment: Option<(MatchSide, MatchMentality)>,
+    subs_used: [i32; 2],
+}
 
-                // Own goals
-                if rng.gen::<f64>() < own_goal_rate {
-                    let benefits_home = rng.gen::<f64>() < home_attack_share;
-                    state.process_own_goal(rng, benefits_home, minute);
-                }
+impl LiveMatch {
+    /// Maximum manual substitutions per side, matching the automatic rotation cap.
+    pub const MAX_SUBS: i32 = 5;
 
-                // Cards
-                let home_foul_share = (1.0 - home_attack_share * 0.4 + 0.2).clamp(0.30, 0.70);
-                if rng.gen::<f64>() < yellow_rate * 2.0 {
-                    let side = if rng.gen::<f64>() < home_foul_share {
-                        MatchSide::Home
-                    } else {
-                        MatchSide::Away
-                    };
-                    state.process_yellow_card(rng, side, minute);
-                }
-                if rng.gen::<f64>() < red_rate * 2.0 {
-                    let side = if rng.gen::<f64>() < home_foul_share {
-                        MatchSide::Home
-                    } else {
-                        MatchSide::Away
-                    };
-                    state.process_straight_red(rng, side, minute);
-                }
+    #[must_use]
+    pub fn from_lineups(
+        input: &MatchInput,
+        home: &Lineup,
+        away: &Lineup,
+        record_events: bool,
+    ) -> Self {
+        Self {
+            input: input.clone(),
+            home_starters: home.starters.clone(),
+            away_starters: away.starters.clone(),
+            state: SimState::new(input, home, away, record_events),
+            bases: MatchEngine::compute_bases(input, &home.starters, &away.starters, None),
+            minute: 0,
+            adjustment: None,
+            subs_used: [0, 0],
+        }
+    }
 
-                // Injuries
-                let inj_side = if rng.gen::<bool>() {
-                    MatchSide::Home
-                } else {
-                    MatchSide::Away
-                };
-                let reduction = match inj_side {
-                    MatchSide::Home => input.home_injury_reduction,
-                    MatchSide::Away => input.away_injury_reduction,
-                };
-                if rng.gen::<f64>() < injury_rate * (1.0 - reduction).clamp(0.1, 1.0) {
-                    state.process_injury(rng, inj_side, minute, input);
-                }
+    #[must_use]
+    pub const fn minute(&self) -> i32 {
+        self.minute
+    }
 
-                // Routine substitutions
-                if minute == 62 || minute == 72 || minute == 84 || minute == 105 {
-                    if rng.gen::<f64>() < 0.85 {
-                        state.make_substitution(MatchSide::Home, minute, input);
-                    }
-                    if rng.gen::<f64>() < 0.85 {
-                        state.make_substitution(MatchSide::Away, minute, input);
-                    }
-                }
-            }
+    #[must_use]
+    pub const fn score(&self) -> (i32, i32) {
+        (self.state.home_goals, self.state.away_goals)
+    }
+
+    #[must_use]
+    pub fn on_pitch(&self, side: MatchSide) -> Vec<Player> {
+        self.state
+            .on_pitch(side)
+            .iter()
+            .map(|o| o.player.clone())
+            .collect()
+    }
+
+    #[must_use]
+    pub fn bench(&self, side: MatchSide) -> Vec<Player> {
+        match side {
+            MatchSide::Home => self.state.home_bench.clone(),
+            MatchSide::Away => self.state.away_bench.clone(),
+        }
+    }
+
+    #[must_use]
+    pub fn events(&self) -> &[MatchEvent] {
+        &self.state.events
+    }
+
+    #[must_use]
+    pub const fn subs_used(&self, side: MatchSide) -> i32 {
+        match side {
+            MatchSide::Home => self.subs_used[0],
+            MatchSide::Away => self.subs_used[1],
+        }
+    }
+
+    /// Simulates every minute up to `until` (clamped to `120`) and returns the new clock.
+    pub fn advance_to<R: Rng>(&mut self, rng: &mut R, until: i32) -> i32 {
+        let end = until.clamp(self.minute, 120);
+        if end > self.minute {
+            let start = self.minute + 1;
+            self.run_minutes(rng, start, end);
+            self.minute = end;
+        }
+        end
+    }
+
+    /// Applies substitutions and/or a mentality change for `side`; the remaining minutes use them.
+    pub fn adjust<R: Rng>(
+        &mut self,
+        rng: &mut R,
+        side: MatchSide,
+        substitutions: &[(PlayerId, PlayerId)],
+        mentality: Option<MatchMentality>,
+    ) -> Result<(), NaratamaError> {
+        if self.minute >= 90 {
+            return Err(NaratamaError::Validation(
+                "Match is over; no further adjustments".into(),
+            ));
+        }
+        let slot = match side {
+            MatchSide::Home => 0,
+            MatchSide::Away => 1,
         };
+        let requested = i32::try_from(substitutions.len()).unwrap_or(0);
+        if self.subs_used[slot] + requested > Self::MAX_SUBS {
+            return Err(NaratamaError::Validation(format!(
+                "Only {} substitutions remain",
+                Self::MAX_SUBS - self.subs_used[slot]
+            )));
+        }
+        for &(out_id, in_id) in substitutions {
+            let team_id = match side {
+                MatchSide::Home => self.input.home_team_id,
+                MatchSide::Away => self.input.away_team_id,
+            };
+            if !self
+                .state
+                .force_substitution(side, out_id, in_id, self.minute, team_id)
+            {
+                return Err(NaratamaError::Validation(format!(
+                    "Cannot substitute {} for {} at {}'",
+                    in_id.0, out_id.0, self.minute
+                )));
+            }
+        }
+        self.subs_used[slot] += requested;
+        if let Some(mentality) = mentality {
+            self.adjustment = Some((side, mentality));
+        }
+        // The remaining minutes are played with the players now on the pitch.
+        let home_players: Vec<Player> = self.on_pitch(MatchSide::Home);
+        let away_players: Vec<Player> = self.on_pitch(MatchSide::Away);
+        self.bases = MatchEngine::compute_bases(
+            &self.input,
+            &home_players,
+            &away_players,
+            self.adjustment,
+        );
+        let _ = rng;
+        Ok(())
+    }
 
-        run_minutes(&mut state, rng, 1, 90);
-
-        let went_to_extra_time = input.extra_time && state.home_goals == state.away_goals;
+    /// Plays out the remaining minutes (including extra time when configured) and builds the result.
+    #[must_use]
+    pub fn run_full(mut self, rng: &mut impl Rng) -> MatchResult {
+        self.advance_to(rng, 90);
+        let went_to_extra_time =
+            self.input.extra_time && self.state.home_goals == self.state.away_goals;
         let final_minute = if went_to_extra_time {
-            run_minutes(&mut state, rng, 91, 120);
-            120
+            self.advance_to(rng, 120)
         } else {
             90
         };
+        self.state.finalize_minutes(rng, final_minute);
+        self.state
+            .finalize_ratings(rng, &self.input, &self.home_starters, &self.away_starters);
+        self.into_result(went_to_extra_time)
+    }
 
-        state.finalize_minutes(rng, final_minute);
-        state.finalize_ratings(rng, input, &home.starters, &away.starters);
+    /// Finishes the match from the current minute, including extra time when configured.
+    #[must_use]
+    pub fn finish(self, rng: &mut impl Rng) -> MatchResult {
+        self.run_full(rng)
+    }
 
+    fn into_result(self, went_to_extra_time: bool) -> MatchResult {
+        let input = &self.input;
         let att_general = FinanceCalc::attendance_for_tier(
             input.capacity_general,
             input.home_power,
@@ -484,6 +635,7 @@ impl MatchEngine {
             + i64::from(att_terrace) * i64::from(input.ticket_price_terrace)
             + i64::from(att_boxes) * i64::from(input.ticket_price_boxes);
 
+        let mut state = self.state;
         state.events.sort_by(|a, b| {
             a.minute
                 .cmp(&b.minute)
@@ -491,7 +643,9 @@ impl MatchEngine {
         });
 
         let poss_home_edge = if input.neutral_venue { 0.0 } else { 1.5 };
-        let mid_diff = (home_mid - away_mid) * 0.65 + ovr_gap * 0.35 + poss_home_edge;
+        let mid_diff = (self.bases.home_mid - self.bases.away_mid) * 0.65
+            + self.bases.ovr_gap * 0.35
+            + poss_home_edge;
         let home_possession = (50.0 + mid_diff * 0.85).round().clamp(25.0, 75.0) as i32;
 
         let mut player_rows: Vec<MatchPlayerRow> =
@@ -502,7 +656,7 @@ impl MatchEngine {
             home_goals: state.home_goals,
             away_goals: state.away_goals,
             went_to_extra_time,
-            events: if record_events {
+            events: if state.record_events {
                 state.events
             } else {
                 Vec::new()
@@ -523,6 +677,104 @@ impl MatchEngine {
         }
     }
 
+    #[allow(clippy::too_many_lines)]
+    fn run_minutes<R: Rng>(&mut self, rng: &mut R, start_min: i32, end_min: i32) {
+        let bases = self.bases;
+        let input = &self.input;
+        let state = &mut self.state;
+        for minute in start_min..=end_min {
+            let home_missing = 11_i32.saturating_sub(state.home_on.len() as i32);
+            let away_missing = 11_i32.saturating_sub(state.away_on.len() as i32);
+
+            let mut home_rate =
+                bases.base_home_rate * 0.82_f64.powi(home_missing) * 1.16_f64.powi(away_missing);
+            let mut away_rate =
+                bases.base_away_rate * 0.82_f64.powi(away_missing) * 1.16_f64.powi(home_missing);
+            let mut home_conv = bases.base_home_conv * 1.08_f64.powi(away_missing);
+            let mut away_conv = bases.base_away_conv * 1.08_f64.powi(home_missing);
+
+            if bases.ovr_gap >= 10.0 && minute >= 35 && (state.home_goals - state.away_goals) <= 1 {
+                let surge = (1.0 + (bases.ovr_gap - 8.0) * 0.015).clamp(1.08, 1.38);
+                home_rate *= surge;
+                home_conv = (home_conv * 1.12).clamp(0.04, 0.36);
+            } else if bases.ovr_gap <= -10.0
+                && minute >= 35
+                && (state.away_goals - state.home_goals) <= 1
+            {
+                let surge = (1.0 + (-bases.ovr_gap - 8.0) * 0.015).clamp(1.08, 1.38);
+                away_rate *= surge;
+                away_conv = (away_conv * 1.12).clamp(0.04, 0.36);
+            }
+
+            // Home & away open-play attacks
+            if rng.gen::<f64>() < home_rate {
+                state.process_attack(rng, MatchSide::Home, minute, home_conv);
+            }
+            if rng.gen::<f64>() < away_rate {
+                state.process_attack(rng, MatchSide::Away, minute, away_conv);
+            }
+
+            // Penalties
+            if rng.gen::<f64>() < bases.home_penalty_rate {
+                state.process_penalty(rng, MatchSide::Home, minute);
+            }
+            if rng.gen::<f64>() < bases.away_penalty_rate {
+                state.process_penalty(rng, MatchSide::Away, minute);
+            }
+
+            // Own goals
+            if rng.gen::<f64>() < bases.own_goal_rate {
+                let benefits_home = rng.gen::<f64>() < bases.home_attack_share;
+                state.process_own_goal(rng, benefits_home, minute);
+            }
+
+            // Cards
+            let home_foul_share = (1.0 - bases.home_attack_share * 0.4 + 0.2).clamp(0.30, 0.70);
+            if rng.gen::<f64>() < bases.yellow_rate * 2.0 {
+                let side = if rng.gen::<f64>() < home_foul_share {
+                    MatchSide::Home
+                } else {
+                    MatchSide::Away
+                };
+                state.process_yellow_card(rng, side, minute);
+            }
+            if rng.gen::<f64>() < bases.red_rate * 2.0 {
+                let side = if rng.gen::<f64>() < home_foul_share {
+                    MatchSide::Home
+                } else {
+                    MatchSide::Away
+                };
+                state.process_straight_red(rng, side, minute);
+            }
+
+            // Injuries
+            let inj_side = if rng.gen::<bool>() {
+                MatchSide::Home
+            } else {
+                MatchSide::Away
+            };
+            let reduction = match inj_side {
+                MatchSide::Home => input.home_injury_reduction,
+                MatchSide::Away => input.away_injury_reduction,
+            };
+            if rng.gen::<f64>() < bases.injury_rate * (1.0 - reduction).clamp(0.1, 1.0) {
+                state.process_injury(rng, inj_side, minute, input);
+            }
+
+            // Routine substitutions
+            if minute == 62 || minute == 72 || minute == 84 || minute == 105 {
+                if rng.gen::<f64>() < 0.85 {
+                    state.make_substitution(MatchSide::Home, minute, input);
+                }
+                if rng.gen::<f64>() < 0.85 {
+                    state.make_substitution(MatchSide::Away, minute, input);
+                }
+            }
+        }
+    }
+}
+
+impl MatchEngine {
     /// Best-of-5 penalty shootout followed by sudden death.
     /// Fixes Bug #16: tracks `home_taken` and `away_taken` separately for early termination.
     #[must_use]
@@ -1108,6 +1360,62 @@ impl SimState {
             Some(&incoming),
             None,
         );
+    }
+
+    /// Manual substitution chosen by the manager; returns false when the pair is not legal.
+    fn force_substitution(
+        &mut self,
+        side: MatchSide,
+        out_id: PlayerId,
+        in_id: PlayerId,
+        minute: i32,
+        team_id: TeamId,
+    ) -> bool {
+        let (on, bench) = match side {
+            MatchSide::Home => (&mut self.home_on, &mut self.home_bench),
+            MatchSide::Away => (&mut self.away_on, &mut self.away_bench),
+        };
+        if on.len() <= 7 {
+            return false;
+        }
+        let Some(bench_idx) = bench.iter().position(|p| p.player_id == in_id) else {
+            return false;
+        };
+        let Some(out_idx) = on.iter().position(|o| o.player.player_id == out_id) else {
+            return false;
+        };
+        let incoming = bench.remove(bench_idx);
+        register_row(&mut self.rows, &incoming, false, team_id);
+        let outgoing = on.remove(out_idx);
+        if let Some(out_row) = self.rows.get_mut(&outgoing.player.player_id) {
+            out_row.minutes = if outgoing.entered_at <= 0 {
+                minute
+            } else {
+                minute - outgoing.entered_at
+            };
+        }
+        if let Some(in_row) = self.rows.get_mut(&incoming.player_id) {
+            in_row.starter = false;
+        }
+        on.push(OnPitch {
+            player: incoming.clone(),
+            entered_at: minute,
+        });
+        self.add_event(
+            MatchEventType::SubstitutionOut,
+            minute,
+            side,
+            Some(&outgoing.player),
+            None,
+        );
+        self.add_event(
+            MatchEventType::SubstitutionIn,
+            minute,
+            side,
+            Some(&incoming),
+            None,
+        );
+        true
     }
 
     fn finalize_minutes(&mut self, rng: &mut impl Rng, final_minute: i32) {

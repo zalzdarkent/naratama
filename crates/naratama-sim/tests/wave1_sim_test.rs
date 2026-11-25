@@ -7,7 +7,8 @@ use naratama_model::{
 use naratama_sim::{
     build_tactical_dossier, calculate_fifa_elo, match_importance, CompetitionKind,
     CompetitionProfile, CounterTactic, EconomyScale, FfpAssessmentInput, FfpLevel, FifaEloInput,
-    FinanceCalc, Formation, Lineup, MatchEngine, MatchEventType, MatchInput, MatchOutlook,
+    FinanceCalc, Formation, Lineup, LiveMatch, MatchEngine, MatchEventType, MatchInput,
+    MatchMentality, MatchOutlook, MatchSide,
     PlayerValuationInput, PlayerValuationService, PrizeEngine, PsrInput, TacticalStyle,
     Vulnerability,
 };
@@ -417,4 +418,123 @@ fn prize_engine_and_valuation_and_elo_parity() {
     );
     assert!(ko_loss.delta_away > 40.0);
     assert!((ko_loss.new_home_points - 1800.0).abs() < 1e-9);
+}
+
+#[test]
+fn live_match_parity_and_half_time_adjustments() {
+    let input = MatchInput {
+        home_squad: make_squad(300, 78),
+        away_squad: make_squad(400, 72),
+        home_team_id: TeamId(3),
+        away_team_id: TeamId(4),
+        home_power: 78,
+        away_power: 72,
+        ..MatchInput::default()
+    };
+    let banned = HashSet::new();
+
+    // A LiveMatch played straight through must equal the one-shot engine result.
+    let mut rng_full = StdRng::seed_from_u64(7_777);
+    let direct = MatchEngine::simulate(&mut rng_full, &input, true, &banned);
+
+    let mut rng_live = StdRng::seed_from_u64(7_777);
+    let home_lineup = Lineup::best(
+        &input.home_squad,
+        input.home_formation,
+        Lineup::DEFAULT_FITNESS_FLOOR,
+        &banned,
+        &input.home_lineup_ids,
+    );
+    let away_lineup = Lineup::best(
+        &input.away_squad,
+        input.away_formation,
+        Lineup::DEFAULT_FITNESS_FLOOR,
+        &banned,
+        &input.away_lineup_ids,
+    );
+    let live = LiveMatch::from_lineups(&input, &home_lineup, &away_lineup, true);
+    let replayed = live.run_full(&mut rng_live);
+    assert_eq!(direct.home_goals, replayed.home_goals);
+    assert_eq!(direct.away_goals, replayed.away_goals);
+    assert_eq!(direct.events, replayed.events);
+    assert_eq!(direct.player_rows, replayed.player_rows);
+
+    // Half-time: one substitution + attacking mentality, then finish.
+    let mut rng = StdRng::seed_from_u64(4_242);
+    let mut match_live = LiveMatch::from_lineups(&input, &home_lineup, &away_lineup, true);
+    assert_eq!(match_live.advance_to(&mut rng, 45), 45);
+    let on_pitch = match_live.on_pitch(MatchSide::Home);
+    let bench = match_live.bench(MatchSide::Home);
+    let out_id = on_pitch
+        .iter()
+        .find(|p| p.position_id == 9)
+        .map_or(on_pitch[10].player_id, |p| p.player_id);
+    let in_id = bench[0].player_id;
+    match_live
+        .adjust(
+            &mut rng,
+            MatchSide::Home,
+            &[(out_id, in_id)],
+            Some(MatchMentality::Attacking),
+        )
+        .expect("legal half-time adjustment");
+    assert_eq!(match_live.subs_used(MatchSide::Home), 1);
+    assert!(match_live
+        .on_pitch(MatchSide::Home)
+        .iter()
+        .any(|p| p.player_id == in_id));
+    assert_eq!(match_live.advance_to(&mut rng, 90), 90);
+    let adjusted = match_live.finish(&mut rng);
+    assert!(
+        adjusted
+            .events
+            .iter()
+            .any(|e| e.event_type == MatchEventType::SubstitutionIn
+                && e.player_id == Some(in_id)
+                && e.minute == 45),
+        "manual substitution must be recorded at the break"
+    );
+    assert!(adjusted
+        .player_rows
+        .iter()
+        .filter(|r| r.team_id == TeamId(3))
+        .map(|r| r.minutes)
+        .sum::<i32>()
+        > 0);
+
+    // Five substitutions is the cap; a sixth request is rejected.
+    let mut capped = LiveMatch::from_lineups(&input, &home_lineup, &away_lineup, true);
+    capped.advance_to(&mut rng, 30);
+    for _ in 0..LiveMatch::MAX_SUBS {
+        let bench = capped.bench(MatchSide::Home);
+        let on_pitch = capped.on_pitch(MatchSide::Home);
+        let Some(incoming) = bench.first() else { break };
+        let outgoing = on_pitch
+            .iter()
+            .find(|p| p.position_id != 1)
+            .map(|p| p.player_id);
+        let Some(outgoing) = outgoing else { break };
+        capped
+            .adjust(
+                &mut rng,
+                MatchSide::Home,
+                &[(outgoing, incoming.player_id)],
+                None,
+            )
+            .expect("substitution under the cap");
+    }
+    let bench_left = capped.bench(MatchSide::Home);
+    let on_pitch = capped.on_pitch(MatchSide::Home);
+    if let Some(incoming) = bench_left.first() {
+        if let Some(outgoing) = on_pitch.iter().find(|p| p.position_id != 1) {
+            assert!(capped
+                .adjust(
+                    &mut rng,
+                    MatchSide::Home,
+                    &[(outgoing.player_id, incoming.player_id)],
+                    None
+                )
+                .is_err());
+        }
+    }
 }
