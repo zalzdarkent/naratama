@@ -9,7 +9,7 @@ use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::{db_err, SeasonRepo};
 use naratama_model::{
     CompetitionType, FixtureMatch, LedgerCategory, LedgerPeriod, MatchId, MatchStatus,
-    NaratamaResult, Player, SeasonId, Stadium, StaffRole, Team, TeamId, TournamentOrg,
+    NaratamaResult, Player, PlayerId, SeasonId, Stadium, StaffRole, Team, TeamId, TournamentOrg,
 };
 use naratama_sim::{FinanceCalc, Formation, MatchEngine, MatchEventType, MatchInput, MatchResult};
 use rand::Rng;
@@ -22,6 +22,12 @@ use crate::national_team_service::{NationalTeamSelectionService, NationalTeamSer
 use crate::season_generator::SeasonGenerator;
 use crate::squad_service::SquadTacticsService;
 use crate::transfer_service::TransferMarketService;
+
+/// Everything the engine needs to simulate one fixture, built the same way for live and batch play.
+pub struct PreparedFixture {
+    pub input: MatchInput,
+    pub banned: HashSet<PlayerId>,
+}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct MatchdayOutcome {
@@ -37,10 +43,177 @@ pub struct MatchdayOutcome {
 pub struct MatchdayService;
 
 impl MatchdayService {
+    /// Builds the simulation input for one fixture; shared by the live match and the batch matchday.
+    #[allow(clippy::too_many_arguments)]
+    fn prepare_fixture(
+        conn: &Connection,
+        fixture: &FixtureMatch,
+        comp_type: CompetitionType,
+        home_team: Option<&Team>,
+        away_team: Option<&Team>,
+        stadium: Option<&Stadium>,
+        squads: &HashMap<TeamId, Vec<Player>>,
+        user_team_id: TeamId,
+        date: NaiveDate,
+    ) -> NaratamaResult<PreparedFixture> {
+        let home_power = home_team.map_or(65, |t| t.power);
+        let away_power = away_team.map_or(65, |t| t.power);
+        let (cap_gen, cap_stand, cap_ter, cap_box) =
+            stadium.map_or((15_000, 10_000, 5_000, 500), |s| {
+                (
+                    s.capacity_general,
+                    s.capacity_stand,
+                    s.capacity_terrace,
+                    s.capacity_boxes,
+                )
+            });
+
+        let mut banned = ClubRepo::banned_players_for_competition(
+            conn,
+            fixture.season_id,
+            comp_type,
+            fixture.home_team_id,
+            fixture.away_team_id,
+        )?;
+        banned.extend(IntlRepo::active_duty_player_ids_on_date(conn, date)?);
+
+        let home_squad = squads
+            .get(&fixture.home_team_id)
+            .cloned()
+            .unwrap_or_default();
+        let away_squad = squads
+            .get(&fixture.away_team_id)
+            .cloned()
+            .unwrap_or_default();
+        let involves_user =
+            fixture.home_team_id == user_team_id || fixture.away_team_id == user_team_id;
+
+        let (home_form_str, home_lineup_ids) = if involves_user {
+            ClubRepo::lineup_and_formation(conn, fixture.home_team_id)?
+        } else {
+            ("4-4-2".to_string(), Vec::new())
+        };
+        let (away_form_str, away_lineup_ids) = if involves_user {
+            ClubRepo::lineup_and_formation(conn, fixture.away_team_id)?
+        } else {
+            ("4-4-2".to_string(), Vec::new())
+        };
+
+        let (home_tac_bonus, home_inj_red) =
+            Self::user_staff_bonuses(conn, fixture.home_team_id, user_team_id)?;
+        let (away_tac_bonus, away_inj_red) =
+            Self::user_staff_bonuses(conn, fixture.away_team_id, user_team_id)?;
+
+        Ok(PreparedFixture {
+            banned,
+            input: MatchInput {
+                home_squad,
+                away_squad,
+                home_team_id: fixture.home_team_id,
+                away_team_id: fixture.away_team_id,
+                capacity_general: cap_gen,
+                capacity_stand: cap_stand,
+                capacity_terrace: cap_ter,
+                capacity_boxes: cap_box,
+                ticket_price_general: stadium
+                    .map_or(Stadium::DEFAULT_GENERAL_PRICE, |s| s.ticket_price_general),
+                ticket_price_stand: stadium
+                    .map_or(Stadium::DEFAULT_STAND_PRICE, |s| s.ticket_price_stand),
+                ticket_price_terrace: stadium
+                    .map_or(Stadium::DEFAULT_TERRACE_PRICE, |s| s.ticket_price_terrace),
+                ticket_price_boxes: stadium
+                    .map_or(Stadium::DEFAULT_BOXES_PRICE, |s| s.ticket_price_boxes),
+                home_power,
+                away_power,
+                home_formation: Formation::parse(Some(&home_form_str)),
+                away_formation: Formation::parse(Some(&away_form_str)),
+                home_lineup_ids,
+                away_lineup_ids,
+                home_tactical_bonus: home_tac_bonus,
+                away_tactical_bonus: away_tac_bonus,
+                home_injury_reduction: home_inj_red.min(0.60),
+                away_injury_reduction: away_inj_red.min(0.60),
+                neutral_venue: fixture.neutral_venue,
+                extra_time: fixture.extra_time,
+                ..MatchInput::default()
+            },
+        })
+    }
+
+    fn user_staff_bonuses(
+        conn: &Connection,
+        team_id: TeamId,
+        user_team_id: TeamId,
+    ) -> NaratamaResult<(f64, f64)> {
+        if team_id != user_team_id {
+            return Ok((0.0, 0.0));
+        }
+        let mut tac_bonus = 0.0;
+        let fac = ClubRepo::facilities(conn, user_team_id)?;
+        let mut inj_red = f64::from((fac.medical_level - 1).max(0)) * 0.08;
+        for st in ClubRepo::staff_for_team(conn, user_team_id)? {
+            match st.role {
+                StaffRole::TacticalAnalyst => tac_bonus += f64::from(st.stars) * 0.015,
+                StaffRole::HeadPhysio => inj_red += f64::from(st.stars) * 0.05,
+                StaffRole::HeadScout => {}
+            }
+        }
+        Ok((tac_bonus, inj_red))
+    }
+
+    /// Prepares the user's next fixture on `date` for an interactive live match.
+    pub fn prepare_live_match(
+        conn: &Connection,
+        season_id: SeasonId,
+        date: NaiveDate,
+        user_team_id: TeamId,
+    ) -> NaratamaResult<Option<(FixtureMatch, PreparedFixture)>> {
+        let Some(fixture) = SeasonRepo::new(conn)
+            .matches_on_date(season_id, date)?
+            .into_iter()
+            .find(|m| {
+                m.status == MatchStatus::Scheduled
+                    && (m.home_team_id == user_team_id || m.away_team_id == user_team_id)
+            })
+        else {
+            return Ok(None);
+        };
+
+        let org = load_tournament_orgs(conn)?
+            .get(&fixture.tournament_id.0)
+            .copied()
+            .unwrap_or(TournamentOrg::League);
+        let comp_type = match org {
+            TournamentOrg::League => CompetitionType::League,
+            TournamentOrg::NationalCup => CompetitionType::DomesticCup,
+            TournamentOrg::International => CompetitionType::Continental,
+            TournamentOrg::Friendly => CompetitionType::Friendly,
+        };
+        let ref_repo = ReferenceRepo::new(conn);
+        let home_team = ref_repo.team_by_id(fixture.home_team_id)?;
+        let away_team = ref_repo.team_by_id(fixture.away_team_id)?;
+        let stadium = ref_repo.stadium_by_id(fixture.stadium_id)?;
+        let mut involved = HashSet::new();
+        involved.insert(fixture.home_team_id);
+        involved.insert(fixture.away_team_id);
+        let squads = load_squads_for_teams(conn, &involved)?;
+        let prepared = Self::prepare_fixture(
+            conn,
+            &fixture,
+            comp_type,
+            home_team.as_ref(),
+            away_team.as_ref(),
+            stadium.as_ref(),
+            &squads,
+            user_team_id,
+            date,
+        )?;
+        Ok(Some((fixture, prepared)))
+    }
     /// Simulates all scheduled matches on `date` (and earlier postponed/missed fixtures if requested),
     /// awards home matchday finances via `FinanceRepo::record_tx`, updates competition-scoped bans and injuries,
     /// and advances knockout cup rounds when a phase completes.
-    #[allow(clippy::too_many_lines)]
+    #[allow(clippy::too_many_lines, clippy::too_many_arguments)]
     pub fn simulate_matchday(
         conn: &mut Connection,
         season_id: SeasonId,
@@ -49,6 +222,7 @@ impl MatchdayService {
         record_user_events: bool,
         user_team_id: TeamId,
         rng: &mut impl Rng,
+        preset_result: Option<&(MatchId, MatchResult)>,
     ) -> NaratamaResult<Vec<MatchdayOutcome>> {
         let fixtures = SeasonRepo::new(conn).matches_on_date(season_id, date)?;
         let pending: Vec<FixtureMatch> = fixtures
@@ -97,114 +271,25 @@ impl MatchdayService {
 
             let involves_user =
                 fixture.home_team_id == user_team_id || fixture.away_team_id == user_team_id;
-            let home_team = teams_map.get(&fixture.home_team_id);
-            let away_team = teams_map.get(&fixture.away_team_id);
-            let home_power = home_team.map_or(65, |t| t.power);
-            let away_power = away_team.map_or(65, |t| t.power);
-
-            let stadium = stadiums_map.get(&fixture.stadium_id.0);
-            let (cap_gen, cap_stand, cap_ter, cap_box) =
-                stadium.map_or((15_000, 10_000, 5_000, 500), |s| {
-                    (
-                        s.capacity_general,
-                        s.capacity_stand,
-                        s.capacity_terrace,
-                        s.capacity_boxes,
-                    )
-                });
-
-            let mut banned = ClubRepo::banned_players_for_competition(
+            let prepared = Self::prepare_fixture(
                 conn,
-                season_id,
+                &fixture,
                 comp_type,
-                fixture.home_team_id,
-                fixture.away_team_id,
+                teams_map.get(&fixture.home_team_id),
+                teams_map.get(&fixture.away_team_id),
+                stadiums_map.get(&fixture.stadium_id.0),
+                &squads,
+                user_team_id,
+                date,
             )?;
-            let intl_duty_out = IntlRepo::active_duty_player_ids_on_date(conn, date)?;
-            banned.extend(intl_duty_out);
-
-            let home_squad = squads
-                .get(&fixture.home_team_id)
-                .cloned()
-                .unwrap_or_default();
-            let away_squad = squads
-                .get(&fixture.away_team_id)
-                .cloned()
-                .unwrap_or_default();
-
-            let (home_form_str, home_lineup_ids) = if involves_user {
-                ClubRepo::lineup_and_formation(conn, fixture.home_team_id)?
-            } else {
-                ("4-4-2".to_string(), Vec::new())
-            };
-            let (away_form_str, away_lineup_ids) = if involves_user {
-                ClubRepo::lineup_and_formation(conn, fixture.away_team_id)?
-            } else {
-                ("4-4-2".to_string(), Vec::new())
-            };
-
-            let mut home_tac_bonus = 0.0;
-            let mut home_inj_red = 0.0;
-            if fixture.home_team_id == user_team_id {
-                let fac = ClubRepo::facilities(conn, user_team_id)?;
-                home_inj_red += f64::from((fac.medical_level - 1).max(0)) * 0.08;
-                for st in ClubRepo::staff_for_team(conn, user_team_id)? {
-                    match st.role {
-                        StaffRole::TacticalAnalyst => home_tac_bonus += f64::from(st.stars) * 0.015,
-                        StaffRole::HeadPhysio => home_inj_red += f64::from(st.stars) * 0.05,
-                        StaffRole::HeadScout => {}
-                    }
-                }
-            }
-
-            let mut away_tac_bonus = 0.0;
-            let mut away_inj_red = 0.0;
-            if fixture.away_team_id == user_team_id {
-                let fac = ClubRepo::facilities(conn, user_team_id)?;
-                away_inj_red += f64::from((fac.medical_level - 1).max(0)) * 0.08;
-                for st in ClubRepo::staff_for_team(conn, user_team_id)? {
-                    match st.role {
-                        StaffRole::TacticalAnalyst => away_tac_bonus += f64::from(st.stars) * 0.015,
-                        StaffRole::HeadPhysio => away_inj_red += f64::from(st.stars) * 0.05,
-                        StaffRole::HeadScout => {}
-                    }
-                }
-            }
-
-            let input = MatchInput {
-                home_squad,
-                away_squad,
-                home_team_id: fixture.home_team_id,
-                away_team_id: fixture.away_team_id,
-                capacity_general: cap_gen,
-                capacity_stand: cap_stand,
-                capacity_terrace: cap_ter,
-                capacity_boxes: cap_box,
-                ticket_price_general: stadium
-                    .map_or(Stadium::DEFAULT_GENERAL_PRICE, |s| s.ticket_price_general),
-                ticket_price_stand: stadium
-                    .map_or(Stadium::DEFAULT_STAND_PRICE, |s| s.ticket_price_stand),
-                ticket_price_terrace: stadium
-                    .map_or(Stadium::DEFAULT_TERRACE_PRICE, |s| s.ticket_price_terrace),
-                ticket_price_boxes: stadium
-                    .map_or(Stadium::DEFAULT_BOXES_PRICE, |s| s.ticket_price_boxes),
-                home_power,
-                away_power,
-                home_formation: Formation::parse(Some(&home_form_str)),
-                away_formation: Formation::parse(Some(&away_form_str)),
-                home_lineup_ids,
-                away_lineup_ids,
-                home_tactical_bonus: home_tac_bonus,
-                away_tactical_bonus: away_tac_bonus,
-                home_injury_reduction: home_inj_red.min(0.60),
-                away_injury_reduction: away_inj_red.min(0.60),
-                neutral_venue: fixture.neutral_venue,
-                extra_time: fixture.extra_time,
-                ..MatchInput::default()
-            };
+            let banned = prepared.banned;
+            let input = prepared.input;
 
             let record_events = record_user_events && involves_user;
-            let sim: MatchResult = MatchEngine::simulate(rng, &input, record_events, &banned);
+            let sim: MatchResult = match preset_result {
+                Some((match_id, result)) if *match_id == fixture.match_id => result.clone(),
+                _ => MatchEngine::simulate(rng, &input, record_events, &banned),
+            };
 
             // Knockout tiebreaker if level after 90'/120' in Cup/Continental knockout
             let mut winner_id = match sim.home_goals.cmp(&sim.away_goals) {

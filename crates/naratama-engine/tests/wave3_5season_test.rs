@@ -280,6 +280,7 @@ fn headless_five_season_career_and_economic_invariants() {
                 true,
                 user_team_id,
                 &mut rng,
+                None,
             )
             .unwrap();
 

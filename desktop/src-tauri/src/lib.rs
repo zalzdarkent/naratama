@@ -628,6 +628,7 @@ fn simulate_next_matchday(state: State<'_, AppState>) -> Result<Vec<MatchdayOutc
         true,
         active.user_team_id,
         &mut active.rng,
+        None,
     )
     .map_err(|e| e.to_string())?;
 

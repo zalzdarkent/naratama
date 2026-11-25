@@ -444,6 +444,26 @@ impl LiveMatch {
     /// Maximum manual substitutions per side, matching the automatic rotation cap.
     pub const MAX_SUBS: i32 = 5;
 
+    /// Builds the session the same way [`MatchEngine::simulate`] picks its elevens.
+    #[must_use]
+    pub fn from_input(input: &MatchInput, record_events: bool, banned: &HashSet<PlayerId>) -> Self {
+        let home = Lineup::best(
+            &input.home_squad,
+            input.home_formation,
+            Lineup::DEFAULT_FITNESS_FLOOR,
+            banned,
+            &input.home_lineup_ids,
+        );
+        let away = Lineup::best(
+            &input.away_squad,
+            input.away_formation,
+            Lineup::DEFAULT_FITNESS_FLOOR,
+            banned,
+            &input.away_lineup_ids,
+        );
+        Self::from_lineups(input, &home, &away, record_events)
+    }
+
     #[must_use]
     pub fn from_lineups(
         input: &MatchInput,
@@ -560,12 +580,8 @@ impl LiveMatch {
         // The remaining minutes are played with the players now on the pitch.
         let home_players: Vec<Player> = self.on_pitch(MatchSide::Home);
         let away_players: Vec<Player> = self.on_pitch(MatchSide::Away);
-        self.bases = MatchEngine::compute_bases(
-            &self.input,
-            &home_players,
-            &away_players,
-            self.adjustment,
-        );
+        self.bases =
+            MatchEngine::compute_bases(&self.input, &home_players, &away_players, self.adjustment);
         let _ = rng;
         Ok(())
     }

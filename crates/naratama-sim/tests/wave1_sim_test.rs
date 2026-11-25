@@ -8,9 +8,8 @@ use naratama_sim::{
     build_tactical_dossier, calculate_fifa_elo, match_importance, CompetitionKind,
     CompetitionProfile, CounterTactic, EconomyScale, FfpAssessmentInput, FfpLevel, FifaEloInput,
     FinanceCalc, Formation, Lineup, LiveMatch, MatchEngine, MatchEventType, MatchInput,
-    MatchMentality, MatchOutlook, MatchSide,
-    PlayerValuationInput, PlayerValuationService, PrizeEngine, PsrInput, TacticalStyle,
-    Vulnerability,
+    MatchMentality, MatchOutlook, MatchSide, PlayerValuationInput, PlayerValuationService,
+    PrizeEngine, PsrInput, TacticalStyle, Vulnerability,
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -421,6 +420,7 @@ fn prize_engine_and_valuation_and_elo_parity() {
 }
 
 #[test]
+#[allow(clippy::too_many_lines)]
 fn live_match_parity_and_half_time_adjustments() {
     let input = MatchInput {
         home_squad: make_squad(300, 78),
@@ -494,13 +494,15 @@ fn live_match_parity_and_half_time_adjustments() {
                 && e.minute == 45),
         "manual substitution must be recorded at the break"
     );
-    assert!(adjusted
-        .player_rows
-        .iter()
-        .filter(|r| r.team_id == TeamId(3))
-        .map(|r| r.minutes)
-        .sum::<i32>()
-        > 0);
+    assert!(
+        adjusted
+            .player_rows
+            .iter()
+            .filter(|r| r.team_id == TeamId(3))
+            .map(|r| r.minutes)
+            .sum::<i32>()
+            > 0
+    );
 
     // Five substitutions is the cap; a sixth request is rejected.
     let mut capped = LiveMatch::from_lineups(&input, &home_lineup, &away_lineup, true);

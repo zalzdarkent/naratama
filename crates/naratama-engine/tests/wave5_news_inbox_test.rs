@@ -94,6 +94,7 @@ fn wave5_news_club_life_manager_offers_inbox_and_dashboard_snapshot() {
             false,
             user_team.team_id,
             &mut rng,
+            None,
         )
         .unwrap();
         let _ = NewsEngine::on_matchday(
