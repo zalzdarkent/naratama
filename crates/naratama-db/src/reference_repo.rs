@@ -165,6 +165,37 @@ impl<'a> ReferenceRepo<'a> {
             .map_err(db_err)
     }
 
+    /// Continental club cups relevant to `country_id` via `international_slots` (Superkickoff parity).
+    pub fn international_cups_for_country(
+        &self,
+        country_id: CountryId,
+    ) -> NaratamaResult<Vec<Tournament>> {
+        let mut stmt = self
+            .conn
+            .prepare(
+                "SELECT
+                    tu.tournament_id, tu.name, COALESCE(tu.organization, 2),
+                    COALESCE(tu.division_id, 0), COALESCE(tu.slots, '0'),
+                    COALESCE(tu.promotion_slots, 0), COALESCE(tu.relegation_spots, 0),
+                    COALESCE(tu.points, 1.0), COALESCE(tu.prize_teams, 0),
+                    COALESCE(tu.prize_top_scorer, 0), COALESCE(tu.prize_mvp, 0),
+                    COALESCE(tu.play_days, ''), COALESCE(tu.rounds, 1), tu.logo_base64
+                 FROM tournaments tu
+                 JOIN international_slots isl ON isl.tournament_id = tu.tournament_id
+                 WHERE isl.country_id = ?1
+                   AND tu.organization = 2
+                   AND tu.tournament_id NOT IN (57, 94, 95, 96, 97, 98)
+                 GROUP BY tu.tournament_id
+                 ORDER BY tu.tournament_id ASC",
+            )
+            .map_err(db_err)?;
+
+        let rows = stmt
+            .query_map(params![country_id.0], map_tournament)
+            .map_err(db_err)?;
+        rows.collect::<Result<Vec<_>, _>>().map_err(db_err)
+    }
+
     pub fn international_cups(&self) -> NaratamaResult<Vec<Tournament>> {
         let mut stmt = self
             .conn

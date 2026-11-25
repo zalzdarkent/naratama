@@ -707,7 +707,7 @@ impl OffseasonService {
                 NaratamaError::NotFound("No domestic league found for user division".into())
             })?;
         let cup = ref_repo.national_cup(user_team.country_id)?;
-        let internationals = ref_repo.international_cups()?;
+        let internationals = ref_repo.international_cups_for_country(user_team.country_id)?;
 
         let next_year = completed_season.start_year + 1;
         let plan = SeasonGenerator::generate_career(

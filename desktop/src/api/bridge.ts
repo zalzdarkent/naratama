@@ -98,8 +98,51 @@ export interface CountryRankDto {
   name: string;
   iso2: string;
   power: number;
+  confederation?: string;
   points: number;
   previous_rank: number | null;
+}
+
+export interface InternationalWindowDto {
+  window_id: string;
+  season_id: number;
+  name: string;
+  window_type: string;
+  start_date: string;
+  end_date: string;
+  release_start_date: string;
+  return_date: string;
+  is_mandatory_release: boolean;
+  max_matches: number;
+  club_fixtures_allowed: boolean;
+}
+
+export interface CountryMatchDto {
+  match_id: number;
+  tournament_id: number;
+  tournament_name: string;
+  home_country_id: number;
+  home_name: string;
+  home_iso2: string;
+  away_country_id: number;
+  away_name: string;
+  away_iso2: string;
+  home_goals: number | null;
+  away_goals: number | null;
+  penalty_home_goals: number | null;
+  penalty_away_goals: number | null;
+  phase: number;
+  round: number;
+  status: number;
+  date: string | null;
+  group_id: number | null;
+  window_id: string | null;
+}
+
+export interface InternationalScheduleDto {
+  windows: InternationalWindowDto[];
+  tournaments: [number, string, number][];
+  matches: CountryMatchDto[];
 }
 
 export interface OffseasonStateDto {
@@ -1148,6 +1191,51 @@ export const desktopApi = {
   async getFifaRankings(): Promise<CountryRankDto[]> {
     return (await tauriInvoke<CountryRankDto[]>('get_fifa_rankings')) ?? PREVIEW_FIFA;
   },
+  async getInternationalSchedule(): Promise<InternationalScheduleDto> {
+    return (
+      (await tauriInvoke<InternationalScheduleDto>('get_international_schedule')) ?? {
+        windows: [
+          {
+            window_id: '2025-sep',
+            season_id: 1,
+            name: 'FIFA Window Sep 2025',
+            window_type: 'FifaWindow',
+            start_date: '2025-09-01',
+            end_date: '2025-09-09',
+            release_start_date: '2025-08-31',
+            return_date: '2025-09-10',
+            is_mandatory_release: true,
+            max_matches: 2,
+            club_fixtures_allowed: false,
+          },
+        ],
+        tournaments: [[900, 'FIFA International Friendly', 2]],
+        matches: [
+          {
+            match_id: 1,
+            tournament_id: 900,
+            tournament_name: 'FIFA International Friendly',
+            home_country_id: 94,
+            home_name: 'Indonesia',
+            home_iso2: 'ID',
+            away_country_id: 11,
+            away_name: 'Argentina',
+            away_iso2: 'AR',
+            home_goals: null,
+            away_goals: null,
+            penalty_home_goals: null,
+            penalty_away_goals: null,
+            phase: 0,
+            round: 1,
+            status: 1,
+            date: '2025-09-05',
+            group_id: null,
+            window_id: '2025-sep',
+          },
+        ],
+      }
+    );
+  },
   async saveCareerSlot(): Promise<void> {
     await tauriInvoke('save_career_slot');
   },
@@ -1167,4 +1255,19 @@ export function positionMeta(posId: number): { label: string; cls: string } {
   if (posId <= 4) return { label: 'DEF', cls: 'pos-def' };
   if (posId <= 8) return { label: 'MID', cls: 'pos-mid' };
   return { label: 'ATT', cls: 'pos-att' };
+}
+
+export function countryFlag(iso2?: string | null, name?: string | null): string {
+  const n = (name ?? '').toLowerCase();
+  if (n === 'england' || iso2?.toUpperCase() === 'GB-ENG') return '🏴󠁧󠁢󠁥󠁮󠁧󠁿';
+  if (n === 'scotland' || iso2?.toUpperCase() === 'GB-SCT') return '🏴󠁧󠁢󠁳󠁣󠁴󠁿';
+  if (n === 'wales' || iso2?.toUpperCase() === 'GB-WLS') return '🏴󠁧󠁢󠁷󠁬󠁳󠁿';
+  const code = (iso2 ?? '').trim().toUpperCase().slice(0, 2);
+  if (/^[A-Z]{2}$/.test(code)) {
+    return String.fromCodePoint(
+      0x1f1e6 + (code.charCodeAt(0) - 65),
+      0x1f1e6 + (code.charCodeAt(1) - 65),
+    );
+  }
+  return '🏳️';
 }

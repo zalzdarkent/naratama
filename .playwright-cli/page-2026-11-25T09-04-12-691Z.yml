@@ -1,0 +1,114 @@
+- generic [ref=e3]:
+  - banner [ref=e4]:
+    - generic [ref=e5]:
+      - generic [ref=e6]: NRU
+      - generic [ref=e7]:
+        - generic [ref=e8]: Naratama United FC
+        - generic [ref=e9]: Season 2025/26 · 2025-08-23
+    - generic [ref=e10]:
+      - generic [ref=e11]:
+        - text: "Kas Klub:"
+        - strong [ref=e12]: $24.8M
+      - generic [ref=e13]: "Jendela Transfer: OPEN (9d)"
+      - generic [ref=e14]:
+        - text: "Mood Fans:"
+        - strong [ref=e15]: 74/100
+    - generic [ref=e16]:
+      - button "ID" [ref=e17] [cursor=pointer]
+      - button "Simpan" [ref=e18] [cursor=pointer]
+      - button "Menu" [ref=e19] [cursor=pointer]
+      - button "▶ Mainkan Matchday" [ref=e20] [cursor=pointer]
+  - complementary [ref=e21]:
+    - button "Ringkasan" [ref=e22] [cursor=pointer]
+    - button "Skuad & Taktik" [ref=e24] [cursor=pointer]
+    - button "Kompetisi" [ref=e26] [cursor=pointer]
+    - button "Timnas & FIFA" [ref=e28] [cursor=pointer]
+    - button "Bursa Transfer" [ref=e30] [cursor=pointer]
+    - button "Scouting & Akademi" [ref=e32] [cursor=pointer]
+    - button "Pusat Klub" [ref=e34] [cursor=pointer]
+    - button "Kotak Masuk 2" [ref=e36] [cursor=pointer]:
+      - generic [ref=e37]: Kotak Masuk
+      - generic [ref=e38]: "2"
+    - button "Riwayat & Juara" [ref=e39] [cursor=pointer]
+    - button "Berita Dunia" [ref=e41] [cursor=pointer]
+  - main [ref=e43]:
+    - generic [ref=e44]:
+      - heading "Pertandingan Berikutnya" [level=3] [ref=e45]
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - generic [ref=e48]:
+            - text: Naratama United FC
+            - generic [ref=e49]: vs
+            - text: Garuda Nusantara
+          - generic [ref=e50]: Tekan Spasi atau klik tombol untuk simulasi matchday.
+        - generic [ref=e51]:
+          - text: "Gaji Mingguan:"
+          - strong [ref=e52]: $301K
+    - generic [ref=e53]:
+      - generic [ref=e54]:
+        - generic [ref=e55]:
+          - heading "Klasemen Liga (5/5)" [level=3] [ref=e56]
+          - button "Lihat Semua" [ref=e57] [cursor=pointer]
+        - table [ref=e58]:
+          - rowgroup [ref=e59]:
+            - row [ref=e60]:
+              - columnheader "#" [ref=e61]
+              - columnheader "Klub" [ref=e62]
+              - columnheader "L" [ref=e63]
+              - columnheader "SG" [ref=e64]
+              - columnheader "Poin" [ref=e65]
+          - rowgroup [ref=e66]:
+            - row [ref=e67] [cursor=pointer]:
+              - cell "1" [ref=e68]
+              - cell "Naratama United FC" [ref=e69]
+              - cell "2" [ref=e70]
+              - cell "4" [ref=e71]
+              - cell "6" [ref=e72]
+            - row [ref=e73] [cursor=pointer]:
+              - cell "2" [ref=e74]
+              - cell "Garuda Nusantara" [ref=e75]
+              - cell "2" [ref=e76]
+              - cell "2" [ref=e77]
+              - cell "4" [ref=e78]
+            - row [ref=e79] [cursor=pointer]:
+              - cell "3" [ref=e80]
+              - cell "Persib Bandung" [ref=e81]
+              - cell "2" [ref=e82]
+              - cell "1" [ref=e83]
+              - cell "4" [ref=e84]
+            - row [ref=e85] [cursor=pointer]:
+              - cell "4" [ref=e86]
+              - cell "Persija Jakarta" [ref=e87]
+              - cell "2" [ref=e88]
+              - cell "0" [ref=e89]
+              - cell "3" [ref=e90]
+            - row [ref=e91] [cursor=pointer]:
+              - cell "5" [ref=e92]
+              - cell "Bali United" [ref=e93]
+              - cell "2" [ref=e94]
+              - cell "-2" [ref=e95]
+              - cell "1" [ref=e96]
+      - generic [ref=e97]:
+        - heading "Berita Terkini" [level=3] [ref=e98]
+        - generic [ref=e99]:
+          - generic [ref=e100]: Naratama United FC lead early title pace after flying start
+          - generic [ref=e101]: Analysts praise the balanced 4-4-2 structure and clinical transition play.
+        - generic [ref=e102]:
+          - generic [ref=e103]: "DONE DEAL: Summer deadline week heats up across top leagues"
+          - generic [ref=e104]: Clubs across Europe and Asia finalize key reinforcements before the registration window shuts.
+  - complementary [ref=e105]:
+    - heading "Inspektor Detail" [level=3] [ref=e106]
+    - generic [ref=e107]:
+      - generic [ref=e108]:
+        - generic [ref=e109]: GK
+        - generic [ref=e110]: 77 / 81
+      - heading "A. Pratama" [level=4] [ref=e111]
+      - generic [ref=e112]: "Usia: 25 · Bugar: 96%"
+      - generic [ref=e113]:
+        - generic [ref=e114]:
+          - text: "Nilai Pasar:"
+          - strong [ref=e115]: $8.5M
+        - generic [ref=e116]:
+          - text: "Gaji / Minggu:"
+          - strong [ref=e117]: $28K
+        - button "Perpanjang Kontrak (+2 musim)" [ref=e118] [cursor=pointer]

@@ -338,41 +338,218 @@ body,
 }
 
 .pitch-2d {
-  background: linear-gradient(180deg, var(--pitch-top), var(--pitch-bottom));
-  border: 2px solid rgba(255, 255, 255, 0.22);
+  background:
+    repeating-linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.03) 0px,
+      rgba(255, 255, 255, 0.03) 38px,
+      transparent 38px,
+      transparent 76px
+    ),
+    linear-gradient(180deg, var(--pitch-top), var(--pitch-bottom));
+  border: 2px solid rgba(255, 255, 255, 0.28);
   border-radius: 12px;
-  padding: 16px;
-  min-height: 360px;
+  padding: 18px 12px;
+  min-height: 410px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   position: relative;
+  overflow: hidden;
+}
+
+.pitch-2d::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.22);
+  pointer-events: none;
+}
+
+.pitch-2d::after {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 78px;
+  height: 78px;
+  transform: translate(-50%, -50%);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.pitch-box-top,
+.pitch-box-bottom {
+  position: absolute;
+  left: 50%;
+  width: 46%;
+  height: 44px;
+  transform: translateX(-50%);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  pointer-events: none;
+}
+
+.pitch-box-top {
+  top: 0;
+  border-top: none;
+}
+
+.pitch-box-bottom {
+  bottom: 0;
+  border-bottom: none;
 }
 
 .pitch-row {
   display: flex;
-  justify-content: space-around;
+  justify-content: space-evenly;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  position: relative;
+  z-index: 1;
 }
 
 .pitch-node {
-  background: rgba(7, 13, 24, 0.88);
-  border: 1px solid var(--accent);
-  border-radius: 8px;
-  padding: 5px 8px;
+  background: rgba(7, 13, 24, 0.9);
+  border: 1px solid rgba(229, 169, 60, 0.65);
+  border-radius: 9px;
+  padding: 6px 8px;
   text-align: center;
-  min-width: 82px;
+  min-width: 76px;
+  max-width: 112px;
+  flex: 1 1 0;
   cursor: pointer;
+  transition: transform 110ms ease, border-color 110ms ease;
 }
 
 .pitch-node:hover {
   border-color: var(--gala-gold);
+  transform: translateY(-1px);
 }
 
 .pitch-node.swap-selected {
   border-color: var(--royal-blue-light);
   box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.45);
+}
+
+.pitch-node-name {
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pitch-node-meta {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  margin-top: 3px;
+  font-size: 10.5px;
+}
+
+/* Knockout Bracket */
+.bracket-grid {
+  display: flex;
+  gap: 18px;
+  overflow-x: auto;
+  padding: 6px 2px 10px;
+  align-items: stretch;
+}
+
+.bracket-col {
+  min-width: 235px;
+  max-width: 270px;
+  flex: 0 0 245px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.bracket-col-head {
+  font-size: 11.5px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--accent-light);
+  padding: 6px 10px;
+  background: var(--surface-card-high);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  text-align: center;
+}
+
+.bracket-matches {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-around;
+  gap: 10px;
+  flex: 1;
+}
+
+.bracket-card {
+  background: var(--surface-card-high);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  overflow: hidden;
+  cursor: pointer;
+  transition: border-color 120ms ease;
+}
+
+.bracket-card:hover {
+  border-color: var(--accent);
+}
+
+.bracket-card.mine {
+  border-left: 3px solid var(--accent-light);
+}
+
+.bracket-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 6px 10px;
+  font-size: 12px;
+}
+
+.bracket-row + .bracket-row {
+  border-top: 1px solid var(--divider);
+}
+
+.bracket-row.winner {
+  background: rgba(229, 169, 60, 0.12);
+  font-weight: 800;
+  color: var(--text);
+}
+
+.bracket-team {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bracket-score {
+  font-weight: 800;
+  color: var(--accent-light);
+  white-space: nowrap;
+}
+
+.bracket-foot {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  padding: 3px 10px;
+  background: rgba(7, 13, 24, 0.45);
+  display: flex;
+  justify-content: space-between;
 }
 
 .fitness-bar {

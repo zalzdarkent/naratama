@@ -180,10 +180,19 @@ export function CompetitionPanel({
       if (!active) return;
       setOverview(data);
       if (!data) return;
+      // Auto-select Bracket for pure knockout cups, or Table for leagues without brackets
+      if (data.organization === 3 && data.groups.length === 0 && data.standings.length === 0) {
+        setTab('bracket');
+      } else if (data.organization === 1 && tab === 'bracket') {
+        setTab('table');
+      }
       const ids = Array.from(
         new Set([
           ...data.standings.map((r) => r.team_id),
           ...data.groups.flatMap((g) => g.rows.map((r) => r.team_id)),
+          ...data.bracket.flatMap((r) =>
+            r.fixtures.flatMap((f) => [f.home_team_id, f.away_team_id]),
+          ),
         ]),
       );
       void desktopApi.getLogoMap(ids).then((pairs) => setLogos(new Map(pairs)));
@@ -225,9 +234,13 @@ export function CompetitionPanel({
         <div style={{ display: 'flex', gap: 6, marginLeft: 'auto' }}>
           {(
             [
-              ['table', t.competition.standings],
+              ...(overview && overview.organization === 3 && overview.groups.length === 0
+                ? []
+                : ([['table', t.competition.standings]] as [Tab, string][])),
               ['fixtures', t.competition.fixtures],
-              ['bracket', t.competition.bracket],
+              ...(overview && overview.organization === 1 && overview.bracket.length === 0
+                ? []
+                : ([['bracket', t.competition.bracket]] as [Tab, string][])),
               ['stats', t.competition.stats],
             ] as [Tab, string][]
           ).map(([key, label]) => (
@@ -246,19 +259,19 @@ export function CompetitionPanel({
 
       {overview && tab === 'table' && (
         <>
-          {overview.groups.length > 0
-            ? overview.groups.map(renderGroup)
-            : overview.standings.length > 0
-              ? (
-                  <StandingsTable
-                    locale={locale}
-                    rows={overview.standings}
-                    userTeamId={userTeamId}
-                    onOpenTeam={onOpenTeam}
-                    logos={logos}
-                  />
-                )
-              : <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.competition.noTable}</div>}
+          {overview.groups.length > 0 ? (
+            <div className="grid-2">{overview.groups.map(renderGroup)}</div>
+          ) : overview.standings.length > 0 ? (
+            <StandingsTable
+              locale={locale}
+              rows={overview.standings}
+              userTeamId={userTeamId}
+              onOpenTeam={onOpenTeam}
+              logos={logos}
+            />
+          ) : (
+            <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.competition.noTable}</div>
+          )}
         </>
       )}
 
@@ -277,31 +290,65 @@ export function CompetitionPanel({
           {overview.bracket.length === 0 && (
             <div style={{ fontSize: 12.5, color: 'var(--text-dim)' }}>{t.competition.noBracket}</div>
           )}
-          <div style={{ display: 'flex', gap: 12, overflowX: 'auto' }}>
+          <div className="bracket-grid">
             {overview.bracket.map((round) => (
-              <div key={round.phase} style={{ minWidth: 210, flex: 1 }}>
-                <div style={{ fontSize: 12, fontWeight: 700, color: 'var(--accent)', marginBottom: 6 }}>
-                  {round.name}
+              <div key={round.phase} className="bracket-col">
+                <div className="bracket-col-head">{round.name}</div>
+                <div className="bracket-matches">
+                  {round.fixtures.map((f) => {
+                    const mine = f.home_team_id === userTeamId || f.away_team_id === userTeamId;
+                    const homeWon = f.winner_id !== null && f.winner_id === f.home_team_id;
+                    const awayWon = f.winner_id !== null && f.winner_id === f.away_team_id;
+                    const hasPens =
+                      (f.penalty_home_goals ?? 0) > 0 || (f.penalty_away_goals ?? 0) > 0;
+                    return (
+                      <div
+                        key={f.match_id}
+                        className={`bracket-card ${mine ? 'mine' : ''}`}
+                        onClick={() => f.home_goals !== null && onOpenMatch(f.match_id)}
+                      >
+                        <div className={`bracket-row ${homeWon ? 'winner' : ''}`}>
+                          <span className="bracket-team">
+                            {logoSrc(logos.get(f.home_team_id)) && (
+                              <img
+                                src={logoSrc(logos.get(f.home_team_id)) ?? ''}
+                                alt=""
+                                style={{ width: 15, height: 15 }}
+                              />
+                            )}
+                            {f.home_name}
+                          </span>
+                          <span className="bracket-score tabular">
+                            {f.home_goals ?? '–'}
+                            {hasPens ? ` (${f.penalty_home_goals})` : ''}
+                          </span>
+                        </div>
+                        <div className={`bracket-row ${awayWon ? 'winner' : ''}`}>
+                          <span className="bracket-team">
+                            {logoSrc(logos.get(f.away_team_id)) && (
+                              <img
+                                src={logoSrc(logos.get(f.away_team_id)) ?? ''}
+                                alt=""
+                                style={{ width: 15, height: 15 }}
+                              />
+                            )}
+                            {f.away_name}
+                          </span>
+                          <span className="bracket-score tabular">
+                            {f.away_goals ?? '–'}
+                            {hasPens ? ` (${f.penalty_away_goals})` : ''}
+                          </span>
+                        </div>
+                        {(f.date || f.leg > 1) && (
+                          <div className="bracket-foot tabular">
+                            <span>{f.date ?? ''}</span>
+                            {f.leg > 1 && <span>Leg {f.leg}</span>}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
-                {round.fixtures.map((f) => (
-                  <div
-                    key={f.match_id}
-                    className="news-item"
-                    style={{ display: 'flex', justifyContent: 'space-between', gap: 6, cursor: 'pointer' }}
-                    onClick={() => f.home_goals !== null && onOpenMatch(f.match_id)}
-                  >
-                    <span style={{ fontSize: 12, fontWeight: f.winner_id === f.home_team_id ? 800 : 500 }}>
-                      {f.home_name}
-                    </span>
-                    <span className="tabular" style={{ fontSize: 12 }}>
-                      {f.home_goals ?? '-'} : {f.away_goals ?? '-'}
-                      {f.leg > 1 ? ` (L${f.leg})` : ''}
-                    </span>
-                    <span style={{ fontSize: 12, fontWeight: f.winner_id === f.away_team_id ? 800 : 500 }}>
-                      {f.away_name}
-                    </span>
-                  </div>
-                ))}
               </div>
             ))}
           </div>

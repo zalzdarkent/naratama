@@ -363,7 +363,9 @@ fn start_new_career(
         .filter_map(|l| ref_repo.tournament_by_id(l.tournament_id).ok().flatten())
         .collect();
     let cup = ref_repo.national_cup(cid).map_err(|e| e.to_string())?;
-    let internationals = ref_repo.international_cups().map_err(|e| e.to_string())?;
+    let internationals = ref_repo
+        .international_cups_for_country(cid)
+        .map_err(|e| e.to_string())?;
     let region = ref_repo
         .country_by_id(cid)
         .map_err(|e| e.to_string())?
@@ -509,7 +511,9 @@ fn start_custom_club_career(
         .filter_map(|l| ref_repo.tournament_by_id(l.tournament_id).ok().flatten())
         .collect();
     let cup = ref_repo.national_cup(cid).map_err(|e| e.to_string())?;
-    let internationals = ref_repo.international_cups().map_err(|e| e.to_string())?;
+    let internationals = ref_repo
+        .international_cups_for_country(cid)
+        .map_err(|e| e.to_string())?;
     let region = ref_repo
         .country_by_id(cid)
         .map_err(|e| e.to_string())?
@@ -2089,6 +2093,141 @@ fn mark_message_read(state: State<'_, AppState>, message_id: i64) -> Result<(), 
     InboxService::mark_read(&active.conn, message_id).map_err(|e| e.to_string())
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct CountryMatchDto {
+    pub match_id: i64,
+    pub tournament_id: i64,
+    pub tournament_name: String,
+    pub home_country_id: i64,
+    pub home_name: String,
+    pub home_iso2: String,
+    pub away_country_id: i64,
+    pub away_name: String,
+    pub away_iso2: String,
+    pub home_goals: Option<i32>,
+    pub away_goals: Option<i32>,
+    pub penalty_home_goals: Option<i32>,
+    pub penalty_away_goals: Option<i32>,
+    pub phase: i32,
+    pub round: i32,
+    pub status: i64,
+    pub date: Option<String>,
+    pub group_id: Option<i32>,
+    pub window_id: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InternationalSchedulePayload {
+    pub windows: Vec<naratama_model::InternationalWindow>,
+    pub tournaments: Vec<(i64, String, i64)>,
+    pub matches: Vec<CountryMatchDto>,
+}
+
+fn intl_tournament_label(tid: i64, db_name: Option<String>) -> String {
+    if let Some(n) = db_name {
+        if !n.trim().is_empty() {
+            return n;
+        }
+    }
+    match tid {
+        57 => "FIFA World Cup".to_string(),
+        94 => "Copa America".to_string(),
+        95 => "UEFA EURO".to_string(),
+        96 => "CONCACAF Gold Cup".to_string(),
+        97 => "Africa Cup of Nations".to_string(),
+        98 => "AFC Asian Cup".to_string(),
+        900 => "FIFA International Friendly".to_string(),
+        901 => "UEFA Nations League".to_string(),
+        902 => "ASEAN Championship".to_string(),
+        903 => "FIFA ASEAN Cup".to_string(),
+        904 => "World Cup Qualifiers".to_string(),
+        905 => "Asian Cup Qualifiers".to_string(),
+        906 => "UEFA EURO Qualifiers".to_string(),
+        _ => format!("International Tournament #{tid}"),
+    }
+}
+
+#[tauri::command]
+fn get_international_schedule(
+    state: State<'_, AppState>,
+) -> Result<InternationalSchedulePayload, String> {
+    let guard = state
+        .active
+        .lock()
+        .map_err(|_| "Career lock poisoned".to_string())?;
+    let active = guard
+        .as_ref()
+        .ok_or_else(|| "No active career session".to_string())?;
+    let windows = SeasonRepo::new(&active.conn)
+        .windows_for_season(active.season_id)
+        .map_err(|e| e.to_string())?;
+    let mut stmt = active
+        .conn
+        .prepare(
+            "SELECT cm.match_id, cm.tournament_id, t.name,
+                    cm.home_country_id, COALESCE(ch.name, 'Home'), COALESCE(ch.iso2, ''),
+                    cm.away_country_id, COALESCE(ca.name, 'Away'), COALESCE(ca.iso2, ''),
+                    cm.home_goals, cm.away_goals, cm.penalty_home_goals, cm.penalty_away_goals,
+                    COALESCE(cm.phase, 0), COALESCE(cm.round, 1), COALESCE(cm.status, 1),
+                    cm.date, cm.group_id, cm.window_id
+             FROM country_matches cm
+             LEFT JOIN countries ch ON ch.country_id = cm.home_country_id
+             LEFT JOIN countries ca ON ca.country_id = cm.away_country_id
+             LEFT JOIN tournaments t ON t.tournament_id = cm.tournament_id
+             WHERE cm.season_id = ?1
+             ORDER BY COALESCE(cm.date, '9999-12-31') ASC, cm.match_id ASC",
+        )
+        .map_err(|e| e.to_string())?;
+    let matches = stmt
+        .query_map(params![active.season_id.0], |r| {
+            let tid: i64 = r.get(1)?;
+            let db_tname: Option<String> = r.get(2)?;
+            Ok(CountryMatchDto {
+                match_id: r.get(0)?,
+                tournament_id: tid,
+                tournament_name: intl_tournament_label(tid, db_tname),
+                home_country_id: r.get(3)?,
+                home_name: r.get(4)?,
+                home_iso2: r.get(5)?,
+                away_country_id: r.get(6)?,
+                away_name: r.get(7)?,
+                away_iso2: r.get(8)?,
+                home_goals: r.get(9)?,
+                away_goals: r.get(10)?,
+                penalty_home_goals: r.get(11)?,
+                penalty_away_goals: r.get(12)?,
+                phase: r.get(13)?,
+                round: r.get(14)?,
+                status: r.get(15)?,
+                date: r.get(16)?,
+                group_id: r.get(17)?,
+                window_id: r.get(18)?,
+            })
+        })
+        .map_err(|e| e.to_string())?
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|e| e.to_string())?;
+
+    let mut tourney_counts: std::collections::BTreeMap<i64, (String, i64)> =
+        std::collections::BTreeMap::new();
+    for m in &matches {
+        let entry = tourney_counts
+            .entry(m.tournament_id)
+            .or_insert_with(|| (m.tournament_name.clone(), 0));
+        entry.1 += 1;
+    }
+    let tournaments = tourney_counts
+        .into_iter()
+        .map(|(id, (name, count))| (id, name, count))
+        .collect();
+
+    Ok(InternationalSchedulePayload {
+        windows,
+        tournaments,
+        matches,
+    })
+}
+
 #[tauri::command]
 fn get_fifa_rankings(state: State<'_, AppState>) -> Result<Vec<Country>, String> {
     let guard = state
@@ -2198,6 +2337,7 @@ pub fn run() {
             get_inbox,
             mark_message_read,
             get_fifa_rankings,
+            get_international_schedule,
             save_career_slot,
         ])
         .run(tauri::generate_context!())

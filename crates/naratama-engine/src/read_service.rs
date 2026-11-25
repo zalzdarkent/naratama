@@ -364,7 +364,8 @@ impl ReadService {
         Ok(rows.filter_map(Result::ok).collect())
     }
 
-    /// Tournaments contested in a season (domestic leagues/cups + international club cups).
+    /// Club tournaments contested in a season (domestic leagues, domestic cup, and continental club cups).
+    /// Excludes national team tournament IDs (57, 94..98, 900..906) and empty tournaments without fixtures.
     pub fn season_tournaments(
         conn: &Connection,
         season_id: SeasonId,
@@ -374,11 +375,18 @@ impl ReadService {
                 "SELECT DISTINCT tu.tournament_id, tu.name, COALESCE(tu.organization, 1)
                  FROM tournaments tu
                  WHERE tu.tournament_id IN (
-                    SELECT tournament_id FROM season_tournaments WHERE season_id = ?1
-                    UNION
                     SELECT DISTINCT tournament_id FROM matches WHERE season_id = ?1
                  )
-                 ORDER BY COALESCE(tu.organization, 1) ASC, tu.tournament_id ASC",
+                   AND tu.tournament_id NOT IN (57, 94, 95, 96, 97, 98, 900, 901, 902, 903, 904, 905, 906)
+                 ORDER BY
+                    CASE COALESCE(tu.organization, 1)
+                        WHEN 1 THEN 1
+                        WHEN 3 THEN 2
+                        WHEN 2 THEN 3
+                        ELSE 4
+                    END ASC,
+                    COALESCE(tu.division_id, 99) ASC,
+                    tu.tournament_id ASC",
             )
             .map_err(db_err)?;
         let rows = stmt
@@ -510,12 +518,16 @@ impl ReadService {
             .filter(|f| f.group_id.is_none() && f.phase <= 1)
             .cloned()
             .collect();
-        let standings = if groups.is_empty() {
+        let standings = if groups.is_empty() && organization != 3 {
             Self::standings_from_fixtures(&league_fixtures, &names)
         } else {
             Vec::new()
         };
-        let bracket = Self::bracket_rounds(&fixtures);
+        let bracket = if organization == 1 {
+            Vec::new()
+        } else {
+            Self::bracket_rounds(&fixtures)
+        };
 
         Ok(CompetitionOverview {
             tournament_id,

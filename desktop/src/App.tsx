@@ -49,6 +49,57 @@ type RouteKey =
   | 'history'
   | 'news';
 
+const FORMATION_QUOTAS: Record<string, [number, number, number]> = {
+  '4-4-2': [4, 4, 2],
+  '4-3-3': [4, 3, 3],
+  '3-5-2': [3, 5, 2],
+  '4-2-3-1': [4, 5, 1],
+  '5-3-2': [5, 3, 2],
+  '4-1-4-1': [4, 5, 1],
+};
+
+function pickFormationXi(squad: PlayerDto[], formation: string): number[] {
+  const [needDef, needMid, needAtt] = FORMATION_QUOTAS[formation] ?? [4, 4, 2];
+  const byOvr = (a: PlayerDto, b: PlayerDto) => b.power - a.power || b.fitness - a.fitness;
+  const gks = squad.filter((p) => p.position_id === 1).sort(byOvr);
+  const defs = squad.filter((p) => p.position_id >= 2 && p.position_id <= 4).sort(byOvr);
+  const mids = squad.filter((p) => p.position_id >= 5 && p.position_id <= 8).sort(byOvr);
+  const atts = squad.filter((p) => p.position_id >= 9).sort(byOvr);
+
+  const used = new Set<number>();
+  const take = (pool: PlayerDto[], count: number): PlayerDto[] => {
+    const out: PlayerDto[] = [];
+    for (const p of pool) {
+      if (out.length >= count) break;
+      if (!used.has(p.player_id)) {
+        used.add(p.player_id);
+        out.push(p);
+      }
+    }
+    return out;
+  };
+
+  const gkPick = take(gks, 1);
+  const defPick = take(defs, needDef);
+  const midPick = take(mids, needMid);
+  const attPick = take(atts, needAtt);
+
+  const rest = squad.filter((p) => !used.has(p.player_id)).sort(byOvr);
+  const fill = (arr: PlayerDto[], target: number) => {
+    while (arr.length < target && rest.length > 0) {
+      const next = rest.shift()!;
+      used.add(next.player_id);
+      arr.push(next);
+    }
+  };
+  fill(gkPick, 1);
+  fill(defPick, needDef);
+  fill(midPick, needMid);
+  fill(attPick, needAtt);
+
+  return [...gkPick, ...defPick, ...midPick, ...attPick].slice(0, 11).map((p) => p.player_id);
+}
+
 const FORMATIONS: Record<string, [number, number][]> = {
   '4-4-2': [
     [9, 11],
@@ -169,11 +220,12 @@ export function App() {
     setManagerOffer(move ?? null);
     setSnapshot(dash);
     setSquad(sq);
-    setFormation(FORMATIONS[tac.formation] ? tac.formation : '4-4-2');
+    const activeForm = FORMATIONS[tac.formation] ? tac.formation : '4-4-2';
+    setFormation(activeForm);
     const validIds =
       tac.starter_ids.length >= 11
         ? tac.starter_ids.slice(0, 11)
-        : sq.slice(0, 11).map((p) => p.player_id);
+        : pickFormationXi(sq, activeForm);
     setStarterIds(validIds);
     setRankings(fifa);
     setClubHub(hub);
@@ -432,10 +484,7 @@ export function App() {
   };
 
   const handleAutoXi = () => {
-    const gk = squad.filter((p) => p.position_id === 1).sort((a, b) => b.power - a.power);
-    const outfield = squad.filter((p) => p.position_id !== 1).sort((a, b) => b.power - a.power);
-    const picked = [...gk.slice(0, 1), ...outfield.slice(0, 10)].map((p) => p.player_id);
-    setStarterIds(picked.slice(0, 11));
+    setStarterIds(pickFormationXi(squad, formation));
     setSwapPick(null);
   };
 
@@ -752,18 +801,22 @@ export function App() {
                 </button>
               ))}
             </div>
-          <div className="grid-2">
+          <div className="grid-2" style={{ alignItems: 'start' }}>
             {squadTab === 'tactics' && (
             <section className="card">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, gap: 8, flexWrap: 'wrap' }}>
                 <h3 className="card-title" style={{ margin: 0 }}>
                   {t.squad.tacticsBoard}
                 </h3>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                   <select
                     className="select"
                     value={formation}
-                    onChange={(e) => setFormation(e.target.value)}
+                    onChange={(e) => {
+                      const nextForm = e.target.value;
+                      setFormation(nextForm);
+                      setStarterIds(pickFormationXi(squad, nextForm));
+                    }}
                   >
                     {Object.keys(FORMATIONS).map((f) => (
                       <option key={f} value={f}>
@@ -788,25 +841,42 @@ export function App() {
                 {t.squad.swapHint}
               </div>
               <div className="pitch-2d">
+                <div className="pitch-box-top" />
+                <div className="pitch-box-bottom" />
                 {rows.map(([start, end], rowIdx) => (
                   <div key={rowIdx} className="pitch-row">
-                    {starters.slice(start, end).map((p) => (
-                      <div
-                        key={p.player_id}
-                        className={`pitch-node ${swapPick === p.player_id ? 'swap-selected' : ''}`}
-                        onClick={() => handlePlayerClick(p)}
-                      >
-                        <div style={{ fontSize: 11, fontWeight: 700 }}>{p.name}</div>
+                    {starters.slice(start, end).map((p) => {
+                      const pm = positionMeta(p.position_id);
+                      const fitColor =
+                        p.fitness > 70 ? 'var(--success)' : p.fitness > 40 ? 'var(--warn)' : 'var(--danger)';
+                      return (
                         <div
-                          style={{
-                            fontSize: 11,
-                            color: rowIdx === rows.length - 1 ? 'var(--warn)' : 'var(--accent-light)',
-                          }}
+                          key={p.player_id}
+                          className={`pitch-node ${swapPick === p.player_id ? 'swap-selected' : ''}`}
+                          onClick={() => handlePlayerClick(p)}
+                          title={`${p.name} (${pm.label} · OVR ${p.power} · Fit ${p.fitness}%)`}
                         >
-                          {p.power}
+                          <div className="pitch-node-name">{p.name}</div>
+                          <div className="pitch-node-meta tabular">
+                            <span className={`pos-badge ${pm.cls}`} style={{ minWidth: 26, fontSize: 9.5, padding: '1px 4px' }}>
+                              {pm.label}
+                            </span>
+                            <strong style={{ color: rowIdx === rows.length - 1 ? 'var(--warn)' : 'var(--accent-light)' }}>
+                              {p.power}
+                            </strong>
+                            <span
+                              style={{
+                                width: 6,
+                                height: 6,
+                                borderRadius: '50%',
+                                background: fitColor,
+                                display: 'inline-block',
+                              }}
+                            />
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 ))}
               </div>
@@ -824,7 +894,8 @@ export function App() {
 
             {squadTab === 'tactics' && (
             <section className="card">
-              <h3 className="card-title">{t.squad.roster}</h3>
+              <h3 className="card-title">{t.squad.roster} ({squad.length})</h3>
+              <div style={{ maxHeight: 540, overflowY: 'auto' }}>
               <table className="data-table tabular">
                 <thead>
                   <tr>
@@ -874,6 +945,7 @@ export function App() {
                   })}
                 </tbody>
               </table>
+              </div>
             </section>
             )}
 
@@ -942,37 +1014,7 @@ export function App() {
         )}
 
         {route === 'international' && (
-          <>
-            <InternationalPanel locale={locale} notify={notify} />
-            <section className="card" style={{ marginTop: 12 }}>
-              <h3 className="card-title">{t.intl.rankings}</h3>
-              <table className="data-table tabular">
-                <thead>
-                  <tr>
-                    <th>{t.intl.rank}</th>
-                    <th>{t.intl.nation}</th>
-                    <th>{t.intl.power}</th>
-                    <th>{t.intl.points}</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rankings.slice(0, 50).map((c, idx) => (
-                    <tr key={c.country_id}>
-                      <td>{idx + 1}</td>
-                      <td style={{ fontWeight: 600 }}>
-                        {c.name}{' '}
-                        <span style={{ color: 'var(--text-dim)', fontSize: 11 }}>({c.iso2})</span>
-                      </td>
-                      <td>{c.power}</td>
-                      <td style={{ color: 'var(--accent-light)', fontWeight: 700 }}>
-                        {c.points.toFixed(2)}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          </>
+          <InternationalPanel locale={locale} rankings={rankings} notify={notify} />
         )}
 
         {route === 'market' && (
