@@ -1,7 +1,8 @@
+use naratama_db::finance_repo::FinanceRepo;
 use naratama_db::logo_service::{seed_default_club_logos, seed_default_league_logos};
 use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::session::SessionManager;
-use naratama_model::CountryId;
+use naratama_model::{CountryId, FfpEnforcement};
 use rusqlite::params;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -148,4 +149,58 @@ fn wave0_session_and_reference_queries_work() {
     mgr.delete_slot(1).expect("delete slot 1");
     let slots_after_delete = mgr.get_all_slots_info().expect("slots after delete");
     assert!(slots_after_delete[0].is_empty);
+}
+
+#[test]
+fn wave6_save_export_import_roundtrip_and_ffp_mode() {
+    let temp = TempDir::new().expect("tempdir");
+    let mgr = SessionManager::new(temp.path(), seed_db_path());
+    mgr.create_slot_from_seed(1).expect("create slot 1");
+
+    let conn = mgr.begin_session(1).expect("begin session");
+    conn.execute(
+        "INSERT INTO local_game_state (
+            id, manager_name, manager_country_id, user_team_id,
+            current_season_id, current_date, game_mode, ffp_enforcement,
+            created_at, updated_at
+        ) VALUES (1, 'Coach Archive', 94, 1, 1, '2025-07-01', 'career', 'off', '2025-07-01', '2025-07-01')",
+        [],
+    )
+    .expect("insert state");
+    mgr.finish_session(1, conn, true).expect("commit session");
+
+    let original = mgr.get_all_slots_info().expect("slots")[0].clone();
+
+    // Export, wipe, and import back into the same slot.
+    let archive = mgr.export_slot(1).expect("export slot");
+    assert!(archive.exists(), "archive must be written");
+    assert_eq!(mgr.list_exports().expect("list exports").len(), 1);
+
+    mgr.delete_slot(1).expect("delete slot");
+    assert!(mgr.get_all_slots_info().expect("slots")[0].is_empty);
+
+    mgr.import_slot(1, &archive).expect("import slot");
+    let restored = mgr.get_all_slots_info().expect("slots")[0].clone();
+    assert_eq!(restored.manager_name, original.manager_name);
+    assert_eq!(restored.game_date, original.game_date);
+
+    // Archives outside saves/exports are rejected.
+    let outside = temp.path().join("rogue.zip");
+    std::fs::copy(&archive, &outside).expect("copy archive outside exports");
+    assert!(mgr.import_slot(2, &outside).is_err());
+    assert!(mgr.get_all_slots_info().expect("slots")[1].is_empty);
+
+    // FFP mode is persisted for the career.
+    let conn = mgr.begin_session(1).expect("begin session");
+    FinanceRepo::set_mode(&conn, FfpEnforcement::Strict).expect("set ffp mode");
+    assert_eq!(
+        FinanceRepo::settings(&conn).expect("settings").mode,
+        FfpEnforcement::Strict
+    );
+    mgr.finish_session(1, conn, true).expect("commit");
+    let conn = mgr.begin_session(1).expect("begin session 2");
+    assert_eq!(
+        FinanceRepo::settings(&conn).expect("settings").mode,
+        FfpEnforcement::Strict
+    );
 }

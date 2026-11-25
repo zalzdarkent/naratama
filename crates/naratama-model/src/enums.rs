@@ -255,6 +255,16 @@ impl FfpEnforcement {
             Self::Strict => "strict",
         }
     }
+
+    #[must_use]
+    pub fn parse(value: &str) -> Self {
+        match value.to_ascii_lowercase().as_str() {
+            "relaxed" => Self::Relaxed,
+            "standard" => Self::Standard,
+            "strict" => Self::Strict,
+            _ => Self::Off,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

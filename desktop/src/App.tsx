@@ -172,15 +172,53 @@ export function App() {
 
   useEffect(() => {
     if (!inCareer) return;
+    const routes: RouteKey[] = [
+      'dashboard',
+      'squad',
+      'competitions',
+      'international',
+      'market',
+      'clubHub',
+      'inbox',
+      'news',
+    ];
     const onKey = (ev: KeyboardEvent) => {
-      if (ev.code === 'Space' && ev.target === document.body) {
+      const tag = (ev.target as HTMLElement | null)?.tagName ?? '';
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(tag) || ev.ctrlKey || ev.metaKey || ev.altKey) {
+        return;
+      }
+      if (ev.code === 'Space') {
         ev.preventDefault();
+        setMatchOutcomes(null);
+        setShowOffseason(false);
         void handlePlayMatchday();
+        return;
+      }
+      if (ev.key === 'Escape') {
+        setMatchOutcomes(null);
+        setShowOffseason(false);
+        return;
+      }
+      const key = ev.key.toLowerCase();
+      if (key === 's') {
+        void desktopApi
+          .saveCareerSlot()
+          .then(() => notify(t.topbar.savedToast))
+          .catch((e) => notify(String(e)));
+        return;
+      }
+      if (key === 'l') {
+        setLocale((cur) => (cur === 'id' ? 'en' : 'id'));
+        return;
+      }
+      const slot = Number(ev.key) - 1;
+      if (Number.isInteger(slot) && slot >= 0 && slot < routes.length) {
+        setRoute(routes[slot]);
       }
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  });
+  }, [inCareer, snapshot, busy]);
 
   if (!inCareer) {
     return (
@@ -197,7 +235,7 @@ export function App() {
   }
 
   if (!snapshot) {
-    return <div style={{ padding: 32 }}>Loading Naratama Gelanggang...</div>;
+    return <div style={{ padding: 32 }}>{t.common.loading}</div>;
   }
 
   const squadMap = new Map(squad.map((p) => [p.player_id, p]));
@@ -243,7 +281,7 @@ export function App() {
   const handleSaveTactics = async () => {
     try {
       await desktopApi.saveTactics(formation, starterIds);
-      notify('Tactics saved');
+      notify(t.squad.saved);
     } catch (err) {
       notify(String(err));
     }
@@ -252,7 +290,7 @@ export function App() {
   const handleTrain = async (focus: string) => {
     try {
       const count = await desktopApi.trainFocus(focus);
-      notify(`Training (${focus}): ${count} players improved`);
+      notify(`${t.squad.trainResult} ${count} (${focus})`);
       await refresh();
     } catch (err) {
       notify(String(err));
@@ -289,7 +327,9 @@ export function App() {
     (snapshot.next_match.home_team_id === snapshot.club.team_id
       ? snapshot.next_match.away_team_id
       : snapshot.next_match.home_team_id);
-  const nextOppName = nextOppId ? teamNameMap.get(nextOppId) ?? `Club #${nextOppId}` : null;
+  const nextOppName = nextOppId
+    ? teamNameMap.get(nextOppId) ?? `${t.common.clubFallback} #${nextOppId}`
+    : null;
   const isSeasonComplete = snapshot.next_match === null || snapshot.offseason !== null;
 
   return (
@@ -321,7 +361,7 @@ export function App() {
           <button
             className="btn"
             onClick={() => setLocale(locale === 'id' ? 'en' : 'id')}
-            title="Switch Language"
+            title={t.topbar.language}
           >
             {locale.toUpperCase()}
           </button>
@@ -363,10 +403,11 @@ export function App() {
             ['inbox', t.nav.inbox],
             ['news', t.nav.news],
           ] as [RouteKey, string][]
-        ).map(([key, label]) => (
+        ).map(([key, label], idx) => (
           <button
             key={key}
             className={`nav-item ${route === key ? 'active' : ''}`}
+            title={`${idx + 1} · ${label}`}
             onClick={() => setRoute(key)}
           >
             <span>{label}</span>
@@ -404,10 +445,10 @@ export function App() {
                   <thead>
                     <tr>
                       <th>#</th>
-                      <th>Club</th>
-                      <th>P</th>
-                      <th>GD</th>
-                      <th>Pts</th>
+                      <th>{t.common.club}</th>
+                      <th>{t.common.played}</th>
+                      <th>{t.common.gd}</th>
+                      <th>{t.common.points}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -568,15 +609,15 @@ export function App() {
               <thead>
                 <tr>
                   <th>#</th>
-                  <th>Club</th>
-                  <th>P</th>
-                  <th>W</th>
-                  <th>D</th>
-                  <th>L</th>
-                  <th>GF</th>
-                  <th>GA</th>
-                  <th>GD</th>
-                  <th>Pts</th>
+                  <th>{t.common.club}</th>
+                  <th>{t.common.played}</th>
+                  <th>{t.common.won}</th>
+                  <th>{t.common.drawn}</th>
+                  <th>{t.common.lost}</th>
+                  <th>{t.common.gf}</th>
+                  <th>{t.common.ga}</th>
+                  <th>{t.common.gd}</th>
+                  <th>{t.common.points}</th>
                 </tr>
               </thead>
               <tbody>
@@ -727,7 +768,7 @@ export function App() {
                     void desktopApi
                       .upgradeTrainingGround()
                       .then(() => {
-                        notify('Training Ground upgraded!');
+                        notify(t.clubHub.upgraded);
                         return refresh();
                       })
                       .catch((e) => notify(String(e)))
@@ -767,7 +808,7 @@ export function App() {
                     void desktopApi
                       .hireStaff(staffRole, staffName, staffStars)
                       .then(() => {
-                        notify(`Hired ${staffName}`);
+                        notify(`${t.clubHub.hired} ${staffName}`);
                         return refresh();
                       })
                       .catch((e) => notify(String(e)))
@@ -928,13 +969,13 @@ export function App() {
                   return (
                     <tr key={o.match_id} className={isUser ? 'user-row' : ''}>
                       <td style={{ textAlign: 'right', fontWeight: 600 }}>
-                        {teamNameMap.get(o.home_team_id) ?? `Club #${o.home_team_id}`}
+                        {teamNameMap.get(o.home_team_id) ?? `${t.common.clubFallback} #${o.home_team_id}`}
                       </td>
                       <td style={{ textAlign: 'center', fontWeight: 800, color: 'var(--accent-light)' }}>
                         {o.home_goals} - {o.away_goals}
                       </td>
                       <td style={{ fontWeight: 600 }}>
-                        {teamNameMap.get(o.away_team_id) ?? `Club #${o.away_team_id}`}
+                        {teamNameMap.get(o.away_team_id) ?? `${t.common.clubFallback} #${o.away_team_id}`}
                       </td>
                     </tr>
                   );

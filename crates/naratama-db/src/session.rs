@@ -139,6 +139,102 @@ impl SessionManager {
         Ok(())
     }
 
+    #[must_use]
+    pub fn exports_dir(&self) -> PathBuf {
+        self.saves_dir.join("exports")
+    }
+
+    /// Packs a committed slot DB into `<saves>/exports/naratama_slot<N>_<epoch>.zip`.
+    pub fn export_slot(&self, slot: u8) -> NaratamaResult<PathBuf> {
+        let slot_file = self.slot_path(slot)?;
+        if !slot_file.exists() {
+            return Err(NaratamaError::NotFound(format!(
+                "Save slot {slot} is empty"
+            )));
+        }
+        let dir = self.exports_dir();
+        fs::create_dir_all(&dir)?;
+        let stamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |d| d.as_secs());
+        let archive = dir.join(format!("naratama_slot{slot}_{stamp}.zip"));
+        let mut writer = zip::ZipWriter::new(fs::File::create(&archive)?);
+        writer
+            .start_file(
+                "naratama_slot.db",
+                zip::write::SimpleFileOptions::default()
+                    .compression_method(zip::CompressionMethod::Stored),
+            )
+            .map_err(|e| NaratamaError::Io(std::io::Error::other(e)))?;
+        let mut source = fs::File::open(&slot_file)?;
+        std::io::copy(&mut source, &mut writer)?;
+        writer
+            .finish()
+            .map_err(|e| NaratamaError::Io(std::io::Error::other(e)))?;
+        Ok(archive)
+    }
+
+    pub fn list_exports(&self) -> NaratamaResult<Vec<PathBuf>> {
+        let dir = self.exports_dir();
+        if !dir.exists() {
+            return Ok(Vec::new());
+        }
+        let mut archives: Vec<PathBuf> = fs::read_dir(&dir)?
+            .filter_map(Result::ok)
+            .map(|entry| entry.path())
+            .filter(|path| path.extension().is_some_and(|ext| ext == "zip"))
+            .collect();
+        archives.sort();
+        Ok(archives)
+    }
+
+    /// Replaces a slot with the DB payload of an archive inside the exports folder.
+    pub fn import_slot(&self, slot: u8, archive: &Path) -> NaratamaResult<()> {
+        Self::validate_slot(slot)?;
+        let exports = self.exports_dir().canonicalize()?;
+        let archive = archive.canonicalize()?;
+        if !archive.starts_with(&exports) {
+            return Err(NaratamaError::Validation(
+                "Archive must live inside the saves/exports folder".into(),
+            ));
+        }
+        let mut zip = zip::ZipArchive::new(fs::File::open(&archive)?)
+            .map_err(|e| NaratamaError::Validation(e.to_string()))?;
+        let mut bytes = Vec::new();
+        {
+            let mut entry = zip
+                .by_name("naratama_slot.db")
+                .map_err(|_| NaratamaError::Validation("Archive has no naratama_slot.db".into()))?;
+            std::io::Read::read_to_end(&mut entry, &mut bytes)?;
+        }
+        if !bytes.starts_with(b"SQLite format 3\0") {
+            return Err(NaratamaError::Validation(
+                "Archive payload is not a SQLite database".into(),
+            ));
+        }
+
+        let tmp = self.saves_dir.join(format!("import_{slot}.db.tmp"));
+        fs::write(&tmp, &bytes)?;
+        let is_save: bool = Connection::open(&tmp)
+            .and_then(|conn| {
+                conn.query_row(
+                    "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'local_game_state'",
+                    [],
+                    |r| r.get::<_, i64>(0),
+                )
+            })
+            .is_ok_and(|count| count > 0);
+        if !is_save {
+            let _ = fs::remove_file(&tmp);
+            return Err(NaratamaError::Validation(
+                "Archive is not a Naratama save file".into(),
+            ));
+        }
+        self.delete_slot(slot)?;
+        fs::rename(&tmp, self.slot_path(slot)?)?;
+        Ok(())
+    }
+
     pub fn get_all_slots_info(&self) -> NaratamaResult<Vec<SaveSlotInfo>> {
         let mut list = Vec::with_capacity(usize::from(Self::MAX_SLOTS));
         for slot in 1..=Self::MAX_SLOTS {

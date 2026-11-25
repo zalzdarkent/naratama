@@ -188,7 +188,10 @@ export interface CustomClubInputDto {
   stadium_name: string;
   preset: 'youth' | 'competitive' | 'veteran';
   starting_budget: number;
+  ffp_enforcement: FfpMode;
 }
+
+export type FfpMode = 'off' | 'relaxed' | 'standard' | 'strict';
 
 declare global {
   interface Window {
@@ -366,6 +369,7 @@ export const desktopApi = {
     managerName: string,
     countryId: number,
     teamId: number,
+    ffpEnforcement: FfpMode,
   ): Promise<DashboardSnapshotDto> {
     return (
       (await tauriInvoke<DashboardSnapshotDto>('start_new_career', {
@@ -373,8 +377,18 @@ export const desktopApi = {
         managerName,
         countryId,
         teamId,
+        ffpEnforcement,
       })) ?? PREVIEW_SNAPSHOT
     );
+  },
+  async exportSaveSlot(slotIndex: number): Promise<string> {
+    return (await tauriInvoke<string>('export_save_slot', { slotIndex })) ?? '';
+  },
+  async listSaveExports(): Promise<string[]> {
+    return (await tauriInvoke<string[]>('list_save_exports')) ?? [];
+  },
+  async importSaveSlot(slotIndex: number, archivePath: string): Promise<void> {
+    await tauriInvoke('import_save_slot', { slotIndex, archivePath });
   },
   async startCustomClubCareer(input: CustomClubInputDto): Promise<DashboardSnapshotDto> {
     return (

@@ -158,6 +158,19 @@ fn wave4_four_year_tournament_cycle_and_podiums() {
             .unwrap();
             assert!(euro.is_some(), "2028 EURO must reach Final podium");
             assert!(asian.is_some(), "2028 Asian Cup must reach Final podium");
+            for (tid, label) in [
+                (tournament_ids::COPA_AMERICA, "Copa América"),
+                (tournament_ids::AFRICA_CUP, "AFCON"),
+                (tournament_ids::GOLD_CUP, "Gold Cup"),
+            ] {
+                let podium = InternationalTournamentService::get_tournament_podium(
+                    &conn,
+                    tid,
+                    season.season_id,
+                )
+                .unwrap();
+                assert!(podium.is_some(), "2028 {label} must reach Final podium");
+            }
         }
     }
 

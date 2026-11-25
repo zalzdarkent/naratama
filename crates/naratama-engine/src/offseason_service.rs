@@ -8,16 +8,16 @@ use naratama_db::market_repo::MarketRepo;
 use naratama_db::reference_repo::ReferenceRepo;
 use naratama_db::SeasonRepo;
 use naratama_model::{
-    AwardType, Confederation, CountryId, LedgerCategory, LedgerPeriod, Money, NaratamaError,
-    NaratamaResult, OffseasonStep, PlayerId, Season, SeasonId, StandingRow, Team, TeamId,
-    Tournament, TournamentId,
+    AwardType, Confederation, CountryId, FfpEnforcement, LedgerCategory, LedgerPeriod, Money,
+    NaratamaError, NaratamaResult, OffseasonStep, PlayerId, Season, SeasonId, StandingRow, Team,
+    TeamId, Tournament, TournamentId,
 };
 use naratama_sim::{compute_standings, PlayerValuationInput, PlayerValuationService};
 use rand::Rng;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
 
-use crate::finance_service::{PrizeDistributionService, SponsorshipService};
+use crate::finance_service::{FinanceService, PrizeDistributionService, SponsorshipService};
 use crate::intl_service::InternationalSimulationService;
 use crate::national_team_service::NationalTeamService;
 use crate::season_generator::{CareerPlan, GenerateCareerRequest, SeasonGenerator};
@@ -133,6 +133,45 @@ impl OffseasonService {
         }
 
         // Complete finance season + Gala Awards (while match_players rows still exist!)
+        let ffp_mode = FinanceRepo::settings(conn).map_or(FfpEnforcement::Off, |s| s.mode);
+        if ffp_mode != FfpEnforcement::Off {
+            let assessment =
+                FinanceService::assess_club_psr(conn, user_team_id, season.season_id, ffp_mode)?;
+            lines.push(format!(
+                "FFP ({}): {:?} · SCR {:.1}% · PSR ${}",
+                ffp_mode.as_str(),
+                assessment.level,
+                assessment.squad_cost_ratio * 100.0,
+                assessment.psr_result
+            ));
+            if !assessment.is_compliant() {
+                let reason = assessment
+                    .reasons
+                    .first()
+                    .map_or_else(|| "unknown".to_string(), |r| format!("{r:?}"));
+                let registration = if assessment.transfer_blocked {
+                    "BLOCKED"
+                } else {
+                    "allowed with warning"
+                };
+                lines.push(format!(
+                    "FFP sanction: {reason} · transfer registration {registration}"
+                ));
+            }
+            let tx = conn.transaction().map_err(db_err)?;
+            FinanceRepo::upsert_club_state_tx(
+                &tx,
+                user_team_id,
+                None,
+                None,
+                None,
+                None,
+                Some(&format!("{:?}", assessment.level).to_lowercase()),
+                date,
+            )?;
+            tx.commit().map_err(db_err)?;
+        }
+
         FinanceRepo::complete_season(conn, season.season_id, date)?;
         let awards = ClubRepo::record_season_awards(
             conn,

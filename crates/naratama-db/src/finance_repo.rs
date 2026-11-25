@@ -368,6 +368,18 @@ impl FinanceRepo {
         }))
     }
 
+    /// Persists the career-wide FFP enforcement mode (`off` default).
+    pub fn set_mode(conn: &Connection, mode: FfpEnforcement) -> NaratamaResult<()> {
+        conn.execute(
+            "INSERT INTO finance_settings (id, mode, completed_seasons, initialized, updated_at, mode_locked)
+             VALUES (1, ?1, 0, 0, date('now'), 1)
+             ON CONFLICT(id) DO UPDATE SET mode = excluded.mode, mode_locked = 1",
+            params![mode.as_str()],
+        )
+        .map_err(db_err)?;
+        Ok(())
+    }
+
     pub fn settings(conn: &Connection) -> NaratamaResult<FinanceSettingsRow> {
         let row = conn
             .query_row(
@@ -378,12 +390,7 @@ impl FinanceRepo {
                 [],
                 |r| {
                     let mode_str: String = r.get(0)?;
-                    let mode = match mode_str.as_str() {
-                        "relaxed" => FfpEnforcement::Relaxed,
-                        "standard" => FfpEnforcement::Standard,
-                        "strict" => FfpEnforcement::Strict,
-                        _ => FfpEnforcement::Off,
-                    };
+                    let mode = FfpEnforcement::parse(&mode_str);
                     Ok(FinanceSettingsRow {
                         mode,
                         completed_seasons: r.get(1)?,

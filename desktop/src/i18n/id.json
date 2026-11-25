@@ -1,4 +1,17 @@
 {
+  "common": {
+    "club": "Klub",
+    "played": "M",
+    "won": "M",
+    "drawn": "S",
+    "lost": "K",
+    "gf": "GM",
+    "ga": "GK",
+    "gd": "SG",
+    "points": "Poin",
+    "loading": "Memuat Naratama Gelanggang...",
+    "clubFallback": "Klub"
+  },
   "appTitle": "Naratama Gelanggang",
   "subtitle": "Football Manager Desktop",
   "start": {
@@ -19,7 +32,19 @@
     "abbr": "Singkatan (3 huruf)",
     "stadiumName": "Nama Stadion",
     "preset": "Preset Skuad Awal",
-    "budget": "Anggaran Awal ($)"
+    "budget": "Anggaran Awal ($)",
+    "ffp": "Aturan FFP",
+    "ffpOff": "Nonaktif (default)",
+    "ffpRelaxed": "Longgar",
+    "ffpStandard": "Standar (blokir transfer)",
+    "ffpStrict": "Ketat (blokir transfer)",
+    "export": "Ekspor",
+    "exportedTo": "Save diekspor ke",
+    "savesArchive": "Arsip Save (.zip)",
+    "noArchives": "Belum ada arsip di folder saves/exports.",
+    "importTarget": "Slot Tujuan",
+    "importAction": "Impor",
+    "imported": "Save berhasil diimpor ke slot"
   },
   "nav": {
     "dashboard": "Ringkasan",
@@ -39,7 +64,8 @@
     "menu": "Menu",
     "playMatch": "Mainkan Matchday",
     "offseason": "Masuk Offseason",
-    "savedToast": "Karier tersimpan ke slot."
+    "savedToast": "Karier tersimpan ke slot.",
+    "language": "Ganti Bahasa"
   },
   "dashboard": {
     "nextFixture": "Pertandingan Berikutnya",
@@ -66,7 +92,9 @@
     "age": "Usia",
     "fitness": "Bugar",
     "value": "Nilai Pasar",
-    "starter": "XI"
+    "starter": "XI",
+    "saved": "Taktik tersimpan.",
+    "trainResult": "Latihan selesai, pemain meningkat:"
   },
   "market": {
     "searchPlaceholder": "Cari nama pemain...",
@@ -84,7 +112,9 @@
     "staff": "Staf Pelatih & Medis",
     "hireStaff": "Rekrut Staf",
     "sponsors": "Sponsor Aktif",
-    "cashFlow": "Ringkasan Arus Kas Musim"
+    "cashFlow": "Ringkasan Arus Kas Musim",
+    "upgraded": "Fasilitas latihan ditingkatkan.",
+    "hired": "Staf direkrut:"
   },
   "offseason": {
     "title": "Wizard Offseason Antar Musim",

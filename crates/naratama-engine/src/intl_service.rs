@@ -373,7 +373,7 @@ impl InternationalTournamentService {
                 }
             }
             _ => {
-                // cycle_year == 0: Asian Cup + UEFA EURO + Friendlies
+                // cycle_year == 0: continental championships (EURO, Asian Cup, Copa América, AFCON, Gold Cup)
                 for w in [oct, mar].into_iter().flatten() {
                     total += Self::schedule_friendlies_for_window(
                         conn,
@@ -384,28 +384,25 @@ impl InternationalTournamentService {
                     )?;
                 }
                 if let Some(w) = &summer {
-                    total += Self::schedule_continental_championship(
-                        conn,
-                        tournament_ids::EURO_CUP,
-                        Confederation::Uefa,
-                        season_id,
-                        w,
-                        24,
-                        6,
-                        user_country_id,
-                        rng,
-                    )?;
-                    total += Self::schedule_continental_championship(
-                        conn,
-                        tournament_ids::ASIAN_CUP,
-                        Confederation::Afc,
-                        season_id,
-                        w,
-                        24,
-                        6,
-                        user_country_id,
-                        rng,
-                    )?;
+                    for (tid, conf, teams, groups) in [
+                        (tournament_ids::EURO_CUP, Confederation::Uefa, 24, 6),
+                        (tournament_ids::ASIAN_CUP, Confederation::Afc, 24, 6),
+                        (tournament_ids::COPA_AMERICA, Confederation::Conmebol, 16, 4),
+                        (tournament_ids::AFRICA_CUP, Confederation::Caf, 24, 6),
+                        (tournament_ids::GOLD_CUP, Confederation::Concacaf, 16, 4),
+                    ] {
+                        total += Self::schedule_continental_championship(
+                            conn,
+                            tid,
+                            conf,
+                            season_id,
+                            w,
+                            teams,
+                            groups,
+                            user_country_id,
+                            rng,
+                        )?;
+                    }
                 }
             }
         }

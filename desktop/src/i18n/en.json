@@ -1,4 +1,17 @@
 {
+  "common": {
+    "club": "Club",
+    "played": "P",
+    "won": "W",
+    "drawn": "D",
+    "lost": "L",
+    "gf": "GF",
+    "ga": "GA",
+    "gd": "GD",
+    "points": "Pts",
+    "loading": "Loading Naratama Gelanggang...",
+    "clubFallback": "Club"
+  },
   "appTitle": "Naratama Gelanggang",
   "subtitle": "Football Manager Desktop",
   "start": {
@@ -19,7 +32,19 @@
     "abbr": "Abbreviation (3 chars)",
     "stadiumName": "Stadium Name",
     "preset": "Starting Squad Preset",
-    "budget": "Starting Budget ($)"
+    "budget": "Starting Budget ($)",
+    "ffp": "FFP Enforcement",
+    "ffpOff": "Off (default)",
+    "ffpRelaxed": "Relaxed",
+    "ffpStandard": "Standard (transfer block)",
+    "ffpStrict": "Strict (transfer block)",
+    "export": "Export",
+    "exportedTo": "Save exported to",
+    "savesArchive": "Save Archive (.zip)",
+    "noArchives": "No archives in saves/exports yet.",
+    "importTarget": "Target Slot",
+    "importAction": "Import",
+    "imported": "Save imported into slot"
   },
   "nav": {
     "dashboard": "Dashboard",
@@ -39,7 +64,8 @@
     "menu": "Menu",
     "playMatch": "Play Matchday",
     "offseason": "Open Offseason",
-    "savedToast": "Career saved to slot."
+    "savedToast": "Career saved to slot.",
+    "language": "Switch Language"
   },
   "dashboard": {
     "nextFixture": "Next Fixture",
@@ -66,7 +92,9 @@
     "age": "Age",
     "fitness": "Fit",
     "value": "Market Value",
-    "starter": "XI"
+    "starter": "XI",
+    "saved": "Tactics saved.",
+    "trainResult": "Training done, players improved:"
   },
   "market": {
     "searchPlaceholder": "Search player name...",
@@ -84,7 +112,9 @@
     "staff": "Coaching & Medical Staff",
     "hireStaff": "Hire Staff",
     "sponsors": "Active Sponsors",
-    "cashFlow": "Season Cash Flow Breakdown"
+    "cashFlow": "Season Cash Flow Breakdown",
+    "upgraded": "Training ground upgraded.",
+    "hired": "Staff hired:"
   },
   "offseason": {
     "title": "End-of-Season Offseason Wizard",

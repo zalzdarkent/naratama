@@ -15,8 +15,9 @@ use naratama_engine::{
     SquadTacticsService, StadiumArchitecture, TrainingFocus, TransferMarketService,
 };
 use naratama_model::{
-    ClubFacilities, Country, CountryId, LeagueSummary, MatchStatus, Money, PlayableCountrySummary,
-    Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Team, TeamId, TournamentId,
+    ClubFacilities, Country, CountryId, FfpEnforcement, LeagueSummary, MatchStatus, Money,
+    PlayableCountrySummary, Player, PlayerId, SaveSlotInfo, Season, SeasonId, StaffRole, Team,
+    TeamId, TournamentId,
 };
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -72,6 +73,12 @@ pub struct CustomClubInput {
     pub stadium_name: String,
     pub preset: String,
     pub starting_budget: Money,
+    #[serde(default)]
+    pub ffp_enforcement: String,
+}
+
+fn apply_ffp_mode(conn: &Connection, mode: &str) -> Result<(), String> {
+    FinanceRepo::set_mode(conn, FfpEnforcement::parse(mode)).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -84,6 +91,59 @@ fn list_save_slots(state: State<'_, AppState>) -> Result<Vec<SaveSlotInfo>, Stri
 fn delete_save_slot(state: State<'_, AppState>, slot_index: u8) -> Result<(), String> {
     let mgr = SessionManager::new(&state.saves_dir, &state.seed_db);
     mgr.delete_slot(slot_index).map_err(|e| e.to_string())
+}
+
+/// Packs a save slot into `<saves>/exports/*.zip` and returns the archive path.
+#[tauri::command]
+fn export_save_slot(state: State<'_, AppState>, slot_index: u8) -> Result<String, String> {
+    let mgr = SessionManager::new(&state.saves_dir, &state.seed_db);
+    {
+        let guard = state
+            .active
+            .lock()
+            .map_err(|_| "Career lock poisoned".to_string())?;
+        if let Some(active) = guard.as_ref() {
+            if active.slot_index == slot_index {
+                mgr.checkpoint_save_session(slot_index, &active.conn)
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+    }
+    let archive = mgr.export_slot(slot_index).map_err(|e| e.to_string())?;
+    Ok(archive.display().to_string())
+}
+
+/// Lists `.zip` archives previously produced by [`export_save_slot`].
+#[tauri::command]
+fn list_save_exports(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let mgr = SessionManager::new(&state.saves_dir, &state.seed_db);
+    Ok(mgr
+        .list_exports()
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .map(|path| path.display().to_string())
+        .collect())
+}
+
+/// Restores a save slot from an archive inside `<saves>/exports`.
+#[tauri::command]
+fn import_save_slot(
+    state: State<'_, AppState>,
+    slot_index: u8,
+    archive_path: String,
+) -> Result<(), String> {
+    {
+        let guard = state
+            .active
+            .lock()
+            .map_err(|_| "Career lock poisoned".to_string())?;
+        if guard.as_ref().is_some_and(|a| a.slot_index == slot_index) {
+            return Err("Leave the active career before importing into its slot".to_string());
+        }
+    }
+    let mgr = SessionManager::new(&state.saves_dir, &state.seed_db);
+    mgr.import_slot(slot_index, std::path::Path::new(&archive_path))
+        .map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -156,6 +216,7 @@ fn start_new_career(
     manager_name: String,
     country_id: i64,
     team_id: i64,
+    ffp_enforcement: Option<String>,
 ) -> Result<DashboardSnapshot, String> {
     let mgr = SessionManager::new(&state.saves_dir, &state.seed_db);
     mgr.create_slot_from_seed(slot_index)
@@ -166,6 +227,7 @@ fn start_new_career(
     let init_date =
         NaiveDate::from_ymd_opt(2025, 7, 1).ok_or_else(|| "Invalid init date".to_string())?;
     FinanceService::ensure_ready(&mut conn, SeasonId(1), init_date).map_err(|e| e.to_string())?;
+    apply_ffp_mode(&conn, ffp_enforcement.as_deref().unwrap_or_default())?;
 
     let cid = CountryId(country_id);
     let tid = TeamId(team_id);
@@ -307,6 +369,7 @@ fn start_custom_club_career(
     .map_err(|e| e.to_string())?;
 
     let tid = created.team.team_id;
+    apply_ffp_mode(&conn, &input.ffp_enforcement)?;
     let ref_repo = ReferenceRepo::new(&conn);
     let leagues = ref_repo
         .leagues_for_country(cid)
@@ -800,6 +863,24 @@ fn make_transfer_offer(
         active.league_tournament_id,
     )
     .map_err(|e| e.to_string())?;
+    let ffp_mode = FinanceRepo::settings(&active.conn)
+        .map_or(FfpEnforcement::Off, |s| s.mode);
+    if ffp_mode != FfpEnforcement::Off {
+        let ffp = FinanceService::assess_club_psr(
+            &active.conn,
+            active.user_team_id,
+            active.season_id,
+            ffp_mode,
+        )
+        .map_err(|e| e.to_string())?;
+        if ffp.transfer_blocked {
+            return Err(format!(
+                "FFP {} sanction blocks player registration (SCR {:.1}%)",
+                ffp_mode.as_str(),
+                ffp.squad_cost_ratio * 100.0
+            ));
+        }
+    }
     let offer_id = TransferMarketService::make_transfer_offer(
         &active.conn,
         PlayerId(player_id),
@@ -1030,6 +1111,9 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             list_save_slots,
             delete_save_slot,
+            export_save_slot,
+            list_save_exports,
+            import_save_slot,
             list_playable_countries,
             list_leagues_for_country,
             list_teams_for_division,

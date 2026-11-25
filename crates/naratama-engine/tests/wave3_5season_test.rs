@@ -13,7 +13,9 @@ use naratama_engine::{
     PreseasonCamp, ScoutingService, SeasonGenerator, SquadTacticsService, StadiumArchitecture,
     TrainingFocus, TransferMarketService,
 };
-use naratama_model::{CountryId, LedgerCategory, LedgerPeriod, MatchStatus, Season, StaffRole};
+use naratama_model::{
+    CountryId, FfpEnforcement, LedgerCategory, LedgerPeriod, MatchStatus, Season, StaffRole,
+};
 use naratama_sim::FinanceCalc;
 use rand::rngs::StdRng;
 use rand::SeedableRng;
@@ -333,8 +335,11 @@ fn headless_five_season_career_and_economic_invariants() {
             &mismatches[..mismatches.len().min(3)]
         );
 
-        // Offseason 7-step flow
+        // Offseason 7-step flow (season 0 exercises the FFP telemetry branch)
         let off_date = NaiveDate::from_ymd_opt(season.end_year, 6, 15).unwrap();
+        if season_idx == 0 {
+            FinanceRepo::set_mode(&conn, FfpEnforcement::Relaxed).unwrap();
+        }
         let s0 = OffseasonService::begin_offseason(
             &mut conn,
             &season,
@@ -345,6 +350,14 @@ fn headless_five_season_career_and_economic_invariants() {
         )
         .unwrap();
         assert_ne!(s0.report, "");
+        if season_idx == 0 {
+            assert!(
+                s0.report.contains("FFP (relaxed)"),
+                "FFP toggle must be reported in the offseason summary: {}",
+                s0.report
+            );
+            FinanceRepo::set_mode(&conn, FfpEnforcement::Off).unwrap();
+        }
 
         // Check Gala awards recorded for season
         let awards_count: i64 = conn

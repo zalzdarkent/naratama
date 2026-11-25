@@ -30,3 +30,8 @@ Context: Pengembangan dilakukan di Linux dengan target distribusi lintas platfor
 Decision: Build & tes utama dijalankan di Linux menggunakan `rusqlite` (`bundled` SQLite) dan API cross-platform, dengan laporan checkpoint di setiap akhir wave (Wave 0..5).
 Consequences: Zero ketergantungan library sistem SQLite; siap cross-compile.
 
+## ADR-006: Arsip Save `.zip` & FFP Enforcement Aktif
+Status: accepted (2026-11-25)
+Context: Slot karier hanya hidup di `saves/`, sehingga backup/pemindahan antar mesin tidak mungkin; dan `FfpEnforcement` sebelumnya hanya telemetri tanpa konsekuensi.
+Decision: `SessionManager` mengekspor slot ke `<saves>/exports/naratama_slot<N>_<epoch>.zip` (payload `naratama_slot.db`, format SQLite divalidasi saat impor dan hanya menerima arsip di dalam folder `exports`), dan impor menolak menimpa slot yang sedang aktif. Mode FFP disimpan di `finance_settings.mode`; saat mode bukan `off`, offseason mencatat level PSR + sanksi dan `standard`/`strict` memblokir registrasi transfer bila assessor menyatakan `transfer_blocked`.
+Consequences: Backup/restore native tanpa dialog file eksternal; FFP punya konsekuensi nyata namun tetap `off` secara default agar paritas MVP aman.

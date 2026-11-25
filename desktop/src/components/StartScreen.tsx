@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import {
   DashboardSnapshotDto,
   desktopApi,
+  FfpMode,
   formatMoney,
   LeagueSummaryDto,
   PlayableCountryDto,
@@ -25,6 +26,11 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
   const [selectedSlot, setSelectedSlot] = useState<number>(1);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const [archives, setArchives] = useState<string[]>([]);
+  const [archive, setArchive] = useState<string>('');
+  const [importSlot, setImportSlot] = useState<number>(1);
+  const [ffp, setFfp] = useState<FfpMode>('off');
 
   // New Career Wizard state
   const [managerName, setManagerName] = useState('Coach Naratama');
@@ -45,6 +51,7 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
   const loadSlots = async () => {
     try {
       setSlots(await desktopApi.listSaveSlots());
+      setArchives(await desktopApi.listSaveExports());
     } catch (err) {
       setError(String(err));
     }
@@ -90,6 +97,35 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
     };
   }, [mode, leagueId]);
 
+  const handleExportSlot = async (slotIndex: number) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const path = await desktopApi.exportSaveSlot(slotIndex);
+      setNotice(`${t.start.exportedTo}: ${path}`);
+      await loadSlots();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const handleImportSlot = async () => {
+    if (!archive) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await desktopApi.importSaveSlot(importSlot, archive);
+      setNotice(`${t.start.imported} #${importSlot}`);
+      await loadSlots();
+    } catch (err) {
+      setError(String(err));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleLoadSlot = async (slotIndex: number) => {
     setBusy(true);
     setError(null);
@@ -128,7 +164,13 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
     setBusy(true);
     setError(null);
     try {
-      const snap = await desktopApi.startNewCareer(selectedSlot, managerName, countryId, teamId);
+      const snap = await desktopApi.startNewCareer(
+        selectedSlot,
+        managerName,
+        countryId,
+        teamId,
+        ffp,
+      );
       onCareerReady(snap);
     } catch (err) {
       setError(String(err));
@@ -151,6 +193,7 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
         stadium_name: stadiumName.trim() || `${clubName.trim()} Arena`,
         preset,
         starting_budget: Math.max(1_000_000, budget),
+        ffp_enforcement: ffp,
       });
       onCareerReady(snap);
     } catch (err) {
@@ -181,6 +224,12 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
         {error && (
           <div className="card" style={{ borderColor: 'var(--danger)', color: '#fca5a5' }}>
             {error}
+          </div>
+        )}
+
+        {notice && (
+          <div className="card" style={{ fontSize: 12.5 }}>
+            {notice}
           </div>
         )}
 
@@ -221,6 +270,13 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                           {t.start.load}
                         </button>
                         <button
+                          className="btn"
+                          disabled={busy}
+                          onClick={() => void handleExportSlot(slot.slot_index)}
+                        >
+                          {t.start.export}
+                        </button>
+                        <button
                           className="btn btn-danger"
                           disabled={busy}
                           onClick={() => void handleDeleteSlot(slot.slot_index)}
@@ -249,6 +305,49 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                   </div>
                 </div>
               ))}
+            </div>
+            <div className="form-grid" style={{ marginTop: 14 }}>
+              <label className="form-field">
+                {t.start.savesArchive}
+                <select
+                  className="select"
+                  value={archive}
+                  onChange={(e) => setArchive(e.target.value)}
+                >
+                  {archives.length === 0 ? (
+                    <option value="">{t.start.noArchives}</option>
+                  ) : (
+                    archives.map((path) => (
+                      <option key={path} value={path}>
+                        {path.split(/[\\/]/).pop() ?? path}
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+              <label className="form-field">
+                {t.start.importTarget}
+                <select
+                  className="select"
+                  value={importSlot}
+                  onChange={(e) => setImportSlot(Number(e.target.value))}
+                >
+                  {slots.map((s) => (
+                    <option key={s.slot_index} value={s.slot_index}>
+                      Slot #{s.slot_index}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <div className="form-field" style={{ justifyContent: 'flex-end' }}>
+                <button
+                  className="btn"
+                  disabled={busy || !archive}
+                  onClick={() => void handleImportSlot()}
+                >
+                  {t.start.importAction}
+                </button>
+              </div>
             </div>
           </section>
         )}
@@ -312,6 +411,19 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                       {tm.name} (OVR {tm.power} · {formatMoney(tm.budget)})
                     </option>
                   ))}
+                </select>
+              </label>
+              <label className="form-field">
+                {t.start.ffp}
+                <select
+                  className="select"
+                  value={ffp}
+                  onChange={(e) => setFfp(e.target.value as FfpMode)}
+                >
+                  <option value="off">{t.start.ffpOff}</option>
+                  <option value="relaxed">{t.start.ffpRelaxed}</option>
+                  <option value="standard">{t.start.ffpStandard}</option>
+                  <option value="strict">{t.start.ffpStrict}</option>
                 </select>
               </label>
             </div>
@@ -382,6 +494,19 @@ export function StartScreen({ locale, onToggleLocale, onCareerReady }: StartScre
                   value={budget}
                   onChange={(e) => setBudget(Number(e.target.value))}
                 />
+              </label>
+              <label className="form-field">
+                {t.start.ffp}
+                <select
+                  className="select"
+                  value={ffp}
+                  onChange={(e) => setFfp(e.target.value as FfpMode)}
+                >
+                  <option value="off">{t.start.ffpOff}</option>
+                  <option value="relaxed">{t.start.ffpRelaxed}</option>
+                  <option value="standard">{t.start.ffpStandard}</option>
+                  <option value="strict">{t.start.ffpStrict}</option>
+                </select>
               </label>
             </div>
             <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
